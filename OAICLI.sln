@@ -1,0 +1,30 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.11.35219.272
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OAICLI", "OAICLI\OAICLI.csproj", "{0818C6CA-BB60-4DF5-BF72-0B3E3E4B7CA9}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OAICLI.Test", "OAICLI.Test\OAICLI.Test.csproj", "{1C235CB9-888B-46DE-8C8B-D3C9303B4729}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{0818C6CA-BB60-4DF5-BF72-0B3E3E4B7CA9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0818C6CA-BB60-4DF5-BF72-0B3E3E4B7CA9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0818C6CA-BB60-4DF5-BF72-0B3E3E4B7CA9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0818C6CA-BB60-4DF5-BF72-0B3E3E4B7CA9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1C235CB9-888B-46DE-8C8B-D3C9303B4729}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1C235CB9-888B-46DE-8C8B-D3C9303B4729}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1C235CB9-888B-46DE-8C8B-D3C9303B4729}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1C235CB9-888B-46DE-8C8B-D3C9303B4729}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {67371D53-DEE2-40DF-972A-7963C4323F64}
+	EndGlobalSection
+EndGlobal
