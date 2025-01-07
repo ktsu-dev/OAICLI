@@ -7,7 +7,7 @@ using Spectre.Console;
 using Spectre.Console.Cli;
 using Spectre.Console.Json;
 
-internal static class OAICLI
+internal static class OAI
 {
 	/// <summary>
 	/// Specifies the content types that can be used in messages.
@@ -101,7 +101,7 @@ internal static class OAICLI
 		var app = new CommandApp();
 		app.Configure(config =>
 		{
-			config.SetApplicationName(nameof(OAICLI));
+			config.SetApplicationName(nameof(OAI));
 			config.ValidateExamples();
 
 			config.AddCommand<DocumentCommand>("document")

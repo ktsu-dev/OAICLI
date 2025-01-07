@@ -26,24 +26,24 @@ internal abstract class CodeReviewCommand : Command<CodeReviewCommand.Settings>
 	}
 
 
-	private static string FileBeginTag => $"##{nameof(OAICLI)}_FILE_BEGIN##";
-	private static string FileEndTag => $"##{nameof(OAICLI)}_FILE_END##";
+	private static string FileBeginTag => $"##{nameof(OAI)}_FILE_BEGIN##";
+	private static string FileEndTag => $"##{nameof(OAI)}_FILE_END##";
 
-	private static string TaskBeginTag => $"##{nameof(OAICLI)}_TASK_BEGIN##";
-	private static string TaskEndTag => $"##{nameof(OAICLI)}_TASK_END##";
+	private static string TaskBeginTag => $"##{nameof(OAI)}_TASK_BEGIN##";
+	private static string TaskEndTag => $"##{nameof(OAI)}_TASK_END##";
 
-	private static string ContextBeginTag => $"##{nameof(OAICLI)}_CONTEXT_BEGIN##";
-	private static string ContextEndTag => $"##{nameof(OAICLI)}_CONTEXT_END##";
+	private static string ContextBeginTag => $"##{nameof(OAI)}_CONTEXT_BEGIN##";
+	private static string ContextEndTag => $"##{nameof(OAI)}_CONTEXT_END##";
 
-	private static string ResponseBeginTag => $"##{nameof(OAICLI)}_RESPONSE_BEGIN##";
-	private static string ResponseEndTag => $"##{nameof(OAICLI)}_RESPONSE_END##";
+	private static string ResponseBeginTag => $"##{nameof(OAI)}_RESPONSE_BEGIN##";
+	private static string ResponseEndTag => $"##{nameof(OAI)}_RESPONSE_END##";
 
 	public override int Execute([NotNull] CommandContext context, [NotNull] Settings settings)
 	{
 		Setup(settings);
 
 		//string responseJson = OAICLI.MakeRequest(TaskRequest);
-		OAICLI.MakeRequest(TaskRequest);
+		OAI.MakeRequest(TaskRequest);
 		//var jsonNode = JsonNode.Parse(responseJson);
 		//var responseObj = jsonNode as JsonObject;
 		//var choicesArray = responseObj?["choices"] as JsonArray;
