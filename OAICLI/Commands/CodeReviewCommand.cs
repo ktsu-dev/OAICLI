@@ -7,7 +7,7 @@ using Spectre.Console.Cli;
 
 internal abstract class CodeReviewCommand : Command<CodeReviewCommand.Settings>
 {
-	internal abstract TaskRequest TaskRequest { get; }
+	internal abstract Request TaskRequest { get; }
 
 	internal virtual void Setup(Settings settings) { }
 
@@ -179,11 +179,11 @@ internal abstract class CodeReviewCommand : Command<CodeReviewCommand.Settings>
 
 internal class DocumentCommand : CodeReviewCommand
 {
-	internal override TaskRequest TaskRequest
+	internal override Request TaskRequest
 	{
 		get
 		{
-			TaskRequest taskRequest = new()
+			Request taskRequest = new()
 			{
 				Name = "Generate Documentation",
 				Description = "Add documentation comments to these code files.",
@@ -212,11 +212,11 @@ internal class DocumentCommand : CodeReviewCommand
 
 internal class TestCommand : CodeReviewCommand
 {
-	internal override TaskRequest TaskRequest
+	internal override Request TaskRequest
 	{
 		get
 		{
-			TaskRequest taskRequest = new()
+			Request taskRequest = new()
 			{
 				Name = "Generate Code Tests",
 				Description = @"
