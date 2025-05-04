@@ -1,3 +1,7 @@
+// Copyright (c) ktsu.dev
+// All rights reserved.
+// Licensed under the MIT license.
+
 namespace ktsu.OAICLI;
 
 using System.Collections.ObjectModel;
@@ -16,15 +20,12 @@ internal abstract class CodeReviewCommand : Command<CodeReviewCommand.Settings>
 		[CommandArgument(0, $"[{nameof(FilePath)}]")]
 		public string FilePath { get; internal set; } = string.Empty;
 
-
 		[CommandOption("-c|--context <FILE_PATHS>")]
 		public string[] ContextFilePaths { get; internal set; } = [];
 
 		[CommandOption("-f|--force")]
 		public bool Force { get; init; }
-
 	}
-
 
 	private static string FileBeginTag => $"##{nameof(OAI)}_FILE_BEGIN##";
 	private static string FileEndTag => $"##{nameof(OAI)}_FILE_END##";
@@ -50,7 +51,6 @@ internal abstract class CodeReviewCommand : Command<CodeReviewCommand.Settings>
 		//var choiceObj = choicesArray?[0] as JsonObject;
 		//var messageObj = choiceObj?["message"] as JsonObject;
 		//string contentModified = messageObj?["content"]?.ToString() ?? "";
-
 
 		//if (!string.IsNullOrWhiteSpace(contentModified))
 		//{
@@ -127,27 +127,29 @@ internal abstract class CodeReviewCommand : Command<CodeReviewCommand.Settings>
 
 	internal static string FindFileAbove(string path, string pattern)
 	{
-		bool isFile = File.Exists(path);
-		string currentDir = isFile
+		var isFile = File.Exists(path);
+		var currentDir = isFile
 			? Path.GetDirectoryName(path) ?? string.Empty
 			: path;
 
 		while (!string.IsNullOrWhiteSpace(currentDir))
 		{
-			string[] directoryFiles = Directory.GetFiles(currentDir, pattern);
+			var directoryFiles = Directory.GetFiles(currentDir, pattern);
 			if (directoryFiles.Length > 0)
 			{
 				return Path.GetFullPath(directoryFiles[0]);
 			}
+
 			currentDir = Path.GetDirectoryName(currentDir) ?? string.Empty;
 		}
+
 		return string.Empty;
 	}
 
 	internal static string[] FindFilesBelow(string path, string pattern)
 	{
-		bool isFile = File.Exists(path);
-		string currentDir = isFile
+		var isFile = File.Exists(path);
+		var currentDir = isFile
 			? Path.GetDirectoryName(path) ?? string.Empty
 			: path;
 		Collection<string> files = [];
@@ -155,6 +157,7 @@ internal abstract class CodeReviewCommand : Command<CodeReviewCommand.Settings>
 		{
 			files.AddMany(Directory.GetFiles(currentDir, pattern, SearchOption.AllDirectories));
 		}
+
 		return [.. files];
 	}
 
@@ -163,13 +166,13 @@ internal abstract class CodeReviewCommand : Command<CodeReviewCommand.Settings>
 		solutionFilePath = FindSolutionAbove(path);
 		projectFilePath = FindCSProjAbove(path);
 
-		bool foundSolution = !string.IsNullOrEmpty(solutionFilePath);
-		bool foundProject = !string.IsNullOrEmpty(projectFilePath);
+		var foundSolution = !string.IsNullOrEmpty(solutionFilePath);
+		var foundProject = !string.IsNullOrEmpty(projectFilePath);
 		if (foundSolution && !foundProject)
 		{
-			string solutionDir = Path.GetDirectoryName(solutionFilePath) ?? string.Empty;
-			string solutionName = Path.GetFileNameWithoutExtension(solutionFilePath);
-			string projectDir = Path.Join(solutionDir, solutionName);
+			var solutionDir = Path.GetDirectoryName(solutionFilePath) ?? string.Empty;
+			var solutionName = Path.GetFileNameWithoutExtension(solutionFilePath);
+			var projectDir = Path.Join(solutionDir, solutionName);
 			projectFilePath = FindCSProjAbove(projectDir);
 		}
 
@@ -189,13 +192,13 @@ internal class DocumentCommand : CodeReviewCommand
 				Description = "Add documentation comments to these code files.",
 			};
 
-			if (!FindProjectAndSolutionFilePaths(Directory.GetCurrentDirectory(), out string _, out string projectFilePath))
+			if (!FindProjectAndSolutionFilePaths(Directory.GetCurrentDirectory(), out var _, out var projectFilePath))
 			{
 				throw new InvalidOperationException("Could not find project and solution files.");
 			}
 
 			IEnumerable<string> filePaths = FindCSCodeBelow(projectFilePath);
-			foreach (string filePath in filePaths)
+			foreach (var filePath in filePaths)
 			{
 				taskRequest.Files.Add(new FileDefinition()
 				{
@@ -336,13 +339,13 @@ namespace MyNamespace.Tests
 ```",
 			};
 
-			if (!FindProjectAndSolutionFilePaths(Directory.GetCurrentDirectory(), out string solutionFilePath, out string _))
+			if (!FindProjectAndSolutionFilePaths(Directory.GetCurrentDirectory(), out var solutionFilePath, out var _))
 			{
 				throw new InvalidOperationException("Could not find project and solution files.");
 			}
 
 			IEnumerable<string> filePaths = FindCSCodeBelow(solutionFilePath);
-			foreach (string filePath in filePaths)
+			foreach (var filePath in filePaths)
 			{
 				taskRequest.Files.Add(new FileDefinition()
 				{
@@ -352,7 +355,7 @@ namespace MyNamespace.Tests
 				});
 			}
 
-			string editorConfigFilePath = FindFileAbove(solutionFilePath, ".editorconfig");
+			var editorConfigFilePath = FindFileAbove(solutionFilePath, ".editorconfig");
 			if (!string.IsNullOrEmpty(editorConfigFilePath))
 			{
 				taskRequest.Files.Add(new FileDefinition()
@@ -371,19 +374,19 @@ namespace MyNamespace.Tests
 	{
 		base.Setup(settings);
 
-		if (!FindProjectAndSolutionFilePaths(Directory.GetCurrentDirectory(), out string solutionFilePath, out string projectFilePath))
+		if (!FindProjectAndSolutionFilePaths(Directory.GetCurrentDirectory(), out var solutionFilePath, out var projectFilePath))
 		{
 			throw new InvalidOperationException("Could not find project and solution files.");
 		}
 
-		string solutionDir = Path.GetDirectoryName(solutionFilePath) ?? string.Empty;
-		string projectName = Path.GetFileNameWithoutExtension(projectFilePath);
-		string testProjectName = $"{projectName}.Test";
-		string testProjectDir = Path.Join(solutionDir, testProjectName);
-		string testProjectFilePath = Path.Join(testProjectDir, $"{testProjectName}.csproj");
-		string testClassName = $"{projectName}Tests";
-		string testFileName = $"{testClassName}.cs";
-		string testFilePath = Path.Join(testProjectDir, testFileName);
+		var solutionDir = Path.GetDirectoryName(solutionFilePath) ?? string.Empty;
+		var projectName = Path.GetFileNameWithoutExtension(projectFilePath);
+		var testProjectName = $"{projectName}.Test";
+		var testProjectDir = Path.Join(solutionDir, testProjectName);
+		var testProjectFilePath = Path.Join(testProjectDir, $"{testProjectName}.csproj");
+		var testClassName = $"{projectName}Tests";
+		var testFileName = $"{testClassName}.cs";
+		var testFilePath = Path.Join(testProjectDir, testFileName);
 
 		Directory.CreateDirectory(testProjectDir);
 		if (!File.Exists(testProjectFilePath))
@@ -397,12 +400,12 @@ namespace MyNamespace.Tests
 		}
 
 		// add the test project to the solution
-		string solutionContent = File.ReadAllText(solutionFilePath);
+		var solutionContent = File.ReadAllText(solutionFilePath);
 		if (!solutionContent.Contains(testProjectName))
 		{
-			string projectGuid = Guid.NewGuid().ToString("B").ToUpperInvariant();
-			string csprojGuid = "{9A19103F-16F7-4668-BE54-9A1E7A4F7556}";
-			string projectContent = $"\r\nProject(\"{csprojGuid}\") = \"{testProjectName}\", \"{testProjectName}\\{testProjectName}.csproj\", \"{{{projectGuid}}}\"\r\nEndProject";
+			var projectGuid = Guid.NewGuid().ToString("B").ToUpperInvariant();
+			var csprojGuid = "{9A19103F-16F7-4668-BE54-9A1E7A4F7556}";
+			var projectContent = $"\r\nProject(\"{csprojGuid}\") = \"{testProjectName}\", \"{testProjectName}\\{testProjectName}.csproj\", \"{{{projectGuid}}}\"\r\nEndProject";
 			solutionContent = solutionContent.Replace("EndProject", projectContent);
 			File.WriteAllText(solutionFilePath, solutionContent);
 		}

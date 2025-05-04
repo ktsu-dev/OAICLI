@@ -1,3 +1,7 @@
+// Copyright (c) ktsu.dev
+// All rights reserved.
+// Licensed under the MIT license.
+
 namespace ktsu.OAICLI;
 
 using System.Collections.ObjectModel;
@@ -48,7 +52,7 @@ internal class Request
 			],
 		};
 
-		string requestJson = JsonSerializer.Serialize(requestBody, JsonSerializerOptions);
+		var requestJson = JsonSerializer.Serialize(requestBody, JsonSerializerOptions);
 		AnsiConsole.Write(new Panel(new JsonText(requestJson)).BorderColor(Color.Green).Header("Request"));
 
 		using StringContent content = new(requestJson, Encoding.UTF8, "application/json");
@@ -56,7 +60,7 @@ internal class Request
 		var response = client.PostAsync(requestURI, content).Result;
 		//response.EnsureSuccessStatusCode();
 
-		string responseJson = response.Content.ReadAsStringAsync().Result;
+		var responseJson = response.Content.ReadAsStringAsync().Result;
 		AnsiConsole.Write(new Panel(new JsonText(responseJson)).BorderColor(Color.Green).Header("Response"));
 		return responseJson;
 	}
