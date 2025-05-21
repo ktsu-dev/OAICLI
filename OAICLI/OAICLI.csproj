@@ -1,13 +1,21 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+
+
+
+
+
+
+
 <Project Sdk="ktsu.Sdk.App/1.8.0">
   <ItemGroup>
     <PackageReference Include="CommandLineParser" Version="2.9.1" />
-    <PackageReference Include="ktsu.AppDataStorage" Version="1.7.0" />
-    <PackageReference Include="ktsu.Extensions" Version="1.5.0" />
-    <PackageReference Include="NJsonSchema" Version="11.2.0" />
-    <PackageReference Include="Spectre.Console" Version="0.49.1" />
-    <PackageReference Include="Spectre.Console.Cli" Version="0.49.1" />
-    <PackageReference Include="Spectre.Console.ImageSharp" Version="0.49.1" />
-    <PackageReference Include="Spectre.Console.Json" Version="0.49.1" />
-    <PackageReference Include="Spectre.Console.Testing" Version="0.49.1" />
+    <PackageReference Include="ktsu.AppDataStorage" Version="1.15.5" />
+    <PackageReference Include="ktsu.Extensions" Version="1.5.5" />
+    <PackageReference Include="NJsonSchema" Version="11.3.2" />
+    <PackageReference Include="Spectre.Console" Version="0.50.0" />
+    <PackageReference Include="Spectre.Console.Cli" Version="0.50.0" />
+    <PackageReference Include="Spectre.Console.ImageSharp" Version="0.50.0" />
+    <PackageReference Include="Spectre.Console.Json" Version="0.50.0" />
+    <PackageReference Include="Spectre.Console.Testing" Version="0.50.0" />
   </ItemGroup>
 </Project>
