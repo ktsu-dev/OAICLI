@@ -11,7 +11,7 @@
     <PackageReference Include="CommandLineParser" Version="2.9.1" />
     <PackageReference Include="ktsu.AppDataStorage" Version="1.16.13" />
     <PackageReference Include="ktsu.Extensions" Version="1.5.14" />
-    <PackageReference Include="NJsonSchema" Version="11.3.2" />
+    <PackageReference Include="NJsonSchema" Version="11.6.1" />
     <PackageReference Include="Spectre.Console" Version="0.55.2" />
     <PackageReference Include="Spectre.Console.Cli" Version="0.50.0" />
     <PackageReference Include="Spectre.Console.ImageSharp" Version="0.55.2" />
