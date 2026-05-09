@@ -1,0 +1,1 @@
+openai;cli;chat completions;gpt 4o;unit tests;xml documentation;code generation;mstest;ai tools;spectre console;dotnet;csharp
