@@ -1,5 +1,7 @@
 ## v1.1.0 (major)
 
+- Add TAGS.md with NuGet package tags ([@matt-edmondson](https://github.com/matt-edmondson))
+- docs: replace placeholder README with usage and command reference ([@matt-edmondson](https://github.com/matt-edmondson))
 - Remove legacy build scripts ([@matt-edmondson](https://github.com/matt-edmondson))
 - Update .editorconfig, .gitignore, .gitattributes, .mailmap, .runsettings, and scripts/PSBuild.psm1 for configuration and script improvements ([@matt-edmondson](https://github.com/matt-edmondson))
 - Update package references in OAICLI.csproj to latest versions ([@matt-edmondson](https://github.com/matt-edmondson))
