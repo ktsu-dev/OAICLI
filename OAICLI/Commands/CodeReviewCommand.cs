@@ -1,6 +1,4 @@
-// Copyright (c) ktsu.dev
-// All rights reserved.
-// Licensed under the MIT license.
+// Copyright (c) 2023-2026 ktsu-dev contributors
 
 namespace ktsu.OAICLI;
 
@@ -39,7 +37,7 @@ internal abstract class CodeReviewCommand : Command<CodeReviewCommand.Settings>
 	private static string ResponseBeginTag => $"##{nameof(OAI)}_RESPONSE_BEGIN##";
 	private static string ResponseEndTag => $"##{nameof(OAI)}_RESPONSE_END##";
 
-	public override int Execute([NotNull] CommandContext context, [NotNull] Settings settings)
+	protected override int Execute([NotNull] CommandContext context, [NotNull] Settings settings, CancellationToken cancellationToken)
 	{
 		Setup(settings);
 
