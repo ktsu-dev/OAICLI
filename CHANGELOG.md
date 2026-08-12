@@ -1,5 +1,6 @@
 ## v1.1.0 (major)
 
+- Sync global.json ([@KtsuTools](https://github.com/KtsuTools))
 - Update packages ([@matt-edmondson](https://github.com/matt-edmondson))
 - Add TAGS.md with NuGet package tags ([@matt-edmondson](https://github.com/matt-edmondson))
 - docs: replace placeholder README with usage and command reference ([@matt-edmondson](https://github.com/matt-edmondson))
