@@ -1,5 +1,6 @@
-## v1.1.0 (major)
+## v1.0.0 (major)
 
+- Migrate to ktsu.Sdk 2.x layout and fix analyzer errors: modern SDK csproj format, CPM cleanup, Spectre.Console 0.57 API update, new file headers, LF endings [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
 - Sync .runsettings ([@KtsuTools](https://github.com/KtsuTools))
 - Sync .editorconfig ([@KtsuTools](https://github.com/KtsuTools))
 - Sync .gitattributes ([@KtsuTools](https://github.com/KtsuTools))
