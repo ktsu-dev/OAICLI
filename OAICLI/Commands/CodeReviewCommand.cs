@@ -1,10 +1,7 @@
-// Copyright (c) ktsu.dev
-// All rights reserved.
-// Licensed under the MIT license.
+// Copyright (c) 2023-2026 ktsu-dev contributors
 
 namespace ktsu.OAICLI;
 
-using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using ktsu.Extensions;
 using Spectre.Console.Cli;
@@ -27,24 +24,12 @@ internal abstract class CodeReviewCommand : Command<CodeReviewCommand.Settings>
 		public bool Force { get; init; }
 	}
 
-	private static string FileBeginTag => $"##{nameof(OAI)}_FILE_BEGIN##";
-	private static string FileEndTag => $"##{nameof(OAI)}_FILE_END##";
-
-	private static string TaskBeginTag => $"##{nameof(OAI)}_TASK_BEGIN##";
-	private static string TaskEndTag => $"##{nameof(OAI)}_TASK_END##";
-
-	private static string ContextBeginTag => $"##{nameof(OAI)}_CONTEXT_BEGIN##";
-	private static string ContextEndTag => $"##{nameof(OAI)}_CONTEXT_END##";
-
-	private static string ResponseBeginTag => $"##{nameof(OAI)}_RESPONSE_BEGIN##";
-	private static string ResponseEndTag => $"##{nameof(OAI)}_RESPONSE_END##";
-
-	public override int Execute([NotNull] CommandContext context, [NotNull] Settings settings)
+	protected override int Execute([NotNull] CommandContext context, [NotNull] Settings settings, CancellationToken cancellationToken)
 	{
 		Setup(settings);
 
 		//string responseJson = OAICLI.MakeRequest(TaskRequest);
-		OAI.MakeRequest(TaskRequest);
+		_ = TaskRequest.Send();
 		//var jsonNode = JsonNode.Parse(responseJson);
 		//var responseObj = jsonNode as JsonObject;
 		//var choicesArray = responseObj?["choices"] as JsonArray;
@@ -107,7 +92,7 @@ internal abstract class CodeReviewCommand : Command<CodeReviewCommand.Settings>
 
 	internal static string EnsureTrainingNewLine(string contentOriginal, string contentModified)
 	{
-		var lineEndingsOriginal = contentOriginal.DetermineLineEndings();
+		LineEndingStyle lineEndingsOriginal = contentOriginal.DetermineLineEndings();
 		contentModified = contentModified.NormalizeLineEndings(LineEndingStyle.Unix);
 		contentModified = contentModified.Trim();
 		contentModified += "\n";
@@ -127,14 +112,14 @@ internal abstract class CodeReviewCommand : Command<CodeReviewCommand.Settings>
 
 	internal static string FindFileAbove(string path, string pattern)
 	{
-		var isFile = File.Exists(path);
-		var currentDir = isFile
+		bool isFile = File.Exists(path);
+		string currentDir = isFile
 			? Path.GetDirectoryName(path) ?? string.Empty
 			: path;
 
 		while (!string.IsNullOrWhiteSpace(currentDir))
 		{
-			var directoryFiles = Directory.GetFiles(currentDir, pattern);
+			string[] directoryFiles = Directory.GetFiles(currentDir, pattern);
 			if (directoryFiles.Length > 0)
 			{
 				return Path.GetFullPath(directoryFiles[0]);
@@ -148,17 +133,14 @@ internal abstract class CodeReviewCommand : Command<CodeReviewCommand.Settings>
 
 	internal static string[] FindFilesBelow(string path, string pattern)
 	{
-		var isFile = File.Exists(path);
-		var currentDir = isFile
+		bool isFile = File.Exists(path);
+		string currentDir = isFile
 			? Path.GetDirectoryName(path) ?? string.Empty
 			: path;
-		Collection<string> files = [];
-		if (!string.IsNullOrWhiteSpace(currentDir))
-		{
-			files.AddMany(Directory.GetFiles(currentDir, pattern, SearchOption.AllDirectories));
-		}
 
-		return [.. files];
+		return string.IsNullOrWhiteSpace(currentDir)
+			? []
+			: Directory.GetFiles(currentDir, pattern, SearchOption.AllDirectories);
 	}
 
 	internal static bool FindProjectAndSolutionFilePaths(string path, out string solutionFilePath, out string projectFilePath)
@@ -166,13 +148,13 @@ internal abstract class CodeReviewCommand : Command<CodeReviewCommand.Settings>
 		solutionFilePath = FindSolutionAbove(path);
 		projectFilePath = FindCSProjAbove(path);
 
-		var foundSolution = !string.IsNullOrEmpty(solutionFilePath);
-		var foundProject = !string.IsNullOrEmpty(projectFilePath);
+		bool foundSolution = !string.IsNullOrEmpty(solutionFilePath);
+		bool foundProject = !string.IsNullOrEmpty(projectFilePath);
 		if (foundSolution && !foundProject)
 		{
-			var solutionDir = Path.GetDirectoryName(solutionFilePath) ?? string.Empty;
-			var solutionName = Path.GetFileNameWithoutExtension(solutionFilePath);
-			var projectDir = Path.Join(solutionDir, solutionName);
+			string solutionDir = Path.GetDirectoryName(solutionFilePath) ?? string.Empty;
+			string solutionName = Path.GetFileNameWithoutExtension(solutionFilePath);
+			string projectDir = Path.Join(solutionDir, solutionName);
 			projectFilePath = FindCSProjAbove(projectDir);
 		}
 
@@ -192,13 +174,13 @@ internal class DocumentCommand : CodeReviewCommand
 				Description = "Add documentation comments to these code files.",
 			};
 
-			if (!FindProjectAndSolutionFilePaths(Directory.GetCurrentDirectory(), out var _, out var projectFilePath))
+			if (!FindProjectAndSolutionFilePaths(Directory.GetCurrentDirectory(), out _, out string projectFilePath))
 			{
 				throw new InvalidOperationException("Could not find project and solution files.");
 			}
 
 			IEnumerable<string> filePaths = FindCSCodeBelow(projectFilePath);
-			foreach (var filePath in filePaths)
+			foreach (string filePath in filePaths)
 			{
 				taskRequest.Files.Add(new FileDefinition()
 				{
@@ -339,13 +321,13 @@ namespace MyNamespace.Tests
 ```",
 			};
 
-			if (!FindProjectAndSolutionFilePaths(Directory.GetCurrentDirectory(), out var solutionFilePath, out var _))
+			if (!FindProjectAndSolutionFilePaths(Directory.GetCurrentDirectory(), out string solutionFilePath, out _))
 			{
 				throw new InvalidOperationException("Could not find project and solution files.");
 			}
 
 			IEnumerable<string> filePaths = FindCSCodeBelow(solutionFilePath);
-			foreach (var filePath in filePaths)
+			foreach (string filePath in filePaths)
 			{
 				taskRequest.Files.Add(new FileDefinition()
 				{
@@ -355,7 +337,7 @@ namespace MyNamespace.Tests
 				});
 			}
 
-			var editorConfigFilePath = FindFileAbove(solutionFilePath, ".editorconfig");
+			string editorConfigFilePath = FindFileAbove(solutionFilePath, ".editorconfig");
 			if (!string.IsNullOrEmpty(editorConfigFilePath))
 			{
 				taskRequest.Files.Add(new FileDefinition()
@@ -374,19 +356,19 @@ namespace MyNamespace.Tests
 	{
 		base.Setup(settings);
 
-		if (!FindProjectAndSolutionFilePaths(Directory.GetCurrentDirectory(), out var solutionFilePath, out var projectFilePath))
+		if (!FindProjectAndSolutionFilePaths(Directory.GetCurrentDirectory(), out string solutionFilePath, out string projectFilePath))
 		{
 			throw new InvalidOperationException("Could not find project and solution files.");
 		}
 
-		var solutionDir = Path.GetDirectoryName(solutionFilePath) ?? string.Empty;
-		var projectName = Path.GetFileNameWithoutExtension(projectFilePath);
-		var testProjectName = $"{projectName}.Test";
-		var testProjectDir = Path.Join(solutionDir, testProjectName);
-		var testProjectFilePath = Path.Join(testProjectDir, $"{testProjectName}.csproj");
-		var testClassName = $"{projectName}Tests";
-		var testFileName = $"{testClassName}.cs";
-		var testFilePath = Path.Join(testProjectDir, testFileName);
+		string solutionDir = Path.GetDirectoryName(solutionFilePath) ?? string.Empty;
+		string projectName = Path.GetFileNameWithoutExtension(projectFilePath);
+		string testProjectName = $"{projectName}.Test";
+		string testProjectDir = Path.Join(solutionDir, testProjectName);
+		string testProjectFilePath = Path.Join(testProjectDir, $"{testProjectName}.csproj");
+		string testClassName = $"{projectName}Tests";
+		string testFileName = $"{testClassName}.cs";
+		string testFilePath = Path.Join(testProjectDir, testFileName);
 
 		Directory.CreateDirectory(testProjectDir);
 		if (!File.Exists(testProjectFilePath))
@@ -400,12 +382,12 @@ namespace MyNamespace.Tests
 		}
 
 		// add the test project to the solution
-		var solutionContent = File.ReadAllText(solutionFilePath);
+		string solutionContent = File.ReadAllText(solutionFilePath);
 		if (!solutionContent.Contains(testProjectName))
 		{
-			var projectGuid = Guid.NewGuid().ToString("B").ToUpperInvariant();
-			var csprojGuid = "{9A19103F-16F7-4668-BE54-9A1E7A4F7556}";
-			var projectContent = $"\r\nProject(\"{csprojGuid}\") = \"{testProjectName}\", \"{testProjectName}\\{testProjectName}.csproj\", \"{{{projectGuid}}}\"\r\nEndProject";
+			string projectGuid = Guid.NewGuid().ToString("B").ToUpperInvariant();
+			string csprojGuid = "{9A19103F-16F7-4668-BE54-9A1E7A4F7556}";
+			string projectContent = $"\r\nProject(\"{csprojGuid}\") = \"{testProjectName}\", \"{testProjectName}\\{testProjectName}.csproj\", \"{{{projectGuid}}}\"\r\nEndProject";
 			solutionContent = solutionContent.Replace("EndProject", projectContent);
 			File.WriteAllText(solutionFilePath, solutionContent);
 		}

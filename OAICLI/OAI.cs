@@ -1,6 +1,4 @@
-// Copyright (c) ktsu.dev
-// All rights reserved.
-// Licensed under the MIT license.
+// Copyright (c) 2023-2026 ktsu-dev contributors
 
 namespace ktsu.OAICLI;
 
@@ -17,7 +15,7 @@ internal static partial class OAI
 	/// <returns>The exit code for the application.</returns>
 	private static int Main(string[] args)
 	{
-		var app = new CommandApp();
+		CommandApp app = new();
 		app.Configure(config =>
 		{
 			_ = config.SetApplicationName(nameof(OAI));

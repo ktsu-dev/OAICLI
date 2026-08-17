@@ -1,11 +1,12 @@
-// Copyright (c) ktsu.dev
-// All rights reserved.
-// Licensed under the MIT license.
+// Copyright (c) 2023-2026 ktsu-dev contributors
 
 namespace ktsu.OAICLI;
 
 using System.Collections.ObjectModel;
+using System.Text;
 using System.Text.Json;
+using Spectre.Console;
+using Spectre.Console.Json;
 
 internal class Request
 {
@@ -52,15 +53,15 @@ internal class Request
 			],
 		};
 
-		var requestJson = JsonSerializer.Serialize(requestBody, JsonSerializerOptions);
+		string requestJson = JsonSerializer.Serialize(requestBody, Json.SerializerOptions);
 		AnsiConsole.Write(new Panel(new JsonText(requestJson)).BorderColor(Color.Green).Header("Request"));
 
 		using StringContent content = new(requestJson, Encoding.UTF8, "application/json");
 		Uri requestURI = new("https://api.openai.com/v1/chat/completions");
-		var response = client.PostAsync(requestURI, content).Result;
+		HttpResponseMessage response = client.PostAsync(requestURI, content).Result;
 		//response.EnsureSuccessStatusCode();
 
-		var responseJson = response.Content.ReadAsStringAsync().Result;
+		string responseJson = response.Content.ReadAsStringAsync().Result;
 		AnsiConsole.Write(new Panel(new JsonText(responseJson)).BorderColor(Color.Green).Header("Response"));
 		return responseJson;
 	}
