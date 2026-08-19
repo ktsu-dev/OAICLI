@@ -1,1 +1,1 @@
-IconHelper
+A .NET command-line tool that uses the OpenAI Chat Completions API to generate MSTest unit tests and XML documentation comments for C# code in the current solution. Scans the solution and project files, posts the gathered sources alongside a structured response schema, then presents the returned diff and optionally applies the edits. Built on Spectre.Console.Cli, calling the OpenAI HTTP API directly, with the API key stored locally via ktsu.AppDataStorage.

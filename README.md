@@ -2,6 +2,11 @@
 
 A .NET CLI that uses the OpenAI Chat Completions API (`gpt-4o`) to generate unit tests and XML documentation comments for C# code in the current solution.
 
+[![License](https://img.shields.io/github/license/ktsu-dev/OAICLI.svg?label=License&logo=nuget)](LICENSE.md)
+[![GitHub commit activity](https://img.shields.io/github/commit-activity/m/ktsu-dev/OAICLI?label=Commits&logo=github)](https://github.com/ktsu-dev/OAICLI/commits/main)
+[![GitHub contributors](https://img.shields.io/github/contributors/ktsu-dev/OAICLI?label=Contributors&logo=github)](https://github.com/ktsu-dev/OAICLI/graphs/contributors)
+[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/ktsu-dev/OAICLI/dotnet.yml?label=Build&logo=github)](https://github.com/ktsu-dev/OAICLI/actions)
+
 ## What it does
 
 OAICLI scans the current `.sln` and `.csproj` files, gathers C# source files, and posts them to OpenAI along with a structured prompt and response schema. The model returns JSON containing a summary, file edits, and a commit message; the tool then displays the diff and (optionally) applies the changes.
