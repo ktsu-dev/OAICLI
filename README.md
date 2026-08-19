@@ -5,7 +5,7 @@ A .NET CLI that uses the OpenAI Chat Completions API (`gpt-4o`) to generate unit
 [![License](https://img.shields.io/github/license/ktsu-dev/OAICLI.svg?label=License&logo=nuget)](LICENSE.md)
 [![GitHub commit activity](https://img.shields.io/github/commit-activity/m/ktsu-dev/OAICLI?label=Commits&logo=github)](https://github.com/ktsu-dev/OAICLI/commits/main)
 [![GitHub contributors](https://img.shields.io/github/contributors/ktsu-dev/OAICLI?label=Contributors&logo=github)](https://github.com/ktsu-dev/OAICLI/graphs/contributors)
-[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/ktsu-dev/OAICLI/dotnet.yml?label=Build&logo=github)](https://github.com/ktsu-dev/OAICLI/actions)
+[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/ktsu-dev/OAICLI/dotnet.yml?branch=main&label=Build&logo=github)](https://github.com/ktsu-dev/OAICLI/actions)
 
 ## What it does
 
