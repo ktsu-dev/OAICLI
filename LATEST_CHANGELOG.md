@@ -1,5 +1,8 @@
 ## v1.0.0 (major)
 
+- chore: store icon.png in LFS as .gitattributes declares ([@matt-edmondson](https://github.com/matt-edmondson))
+- docs: scope build badge to the default branch ([@matt-edmondson](https://github.com/matt-edmondson))
+- docs: correct README, DESCRIPTION and TAGS metadata ([@matt-edmondson](https://github.com/matt-edmondson))
 - Migrate to ktsu.Sdk 2.x layout and fix analyzer errors: modern SDK csproj format, CPM cleanup, Spectre.Console 0.57 API update, new file headers, LF endings [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
 - Sync .runsettings ([@KtsuTools](https://github.com/KtsuTools))
 - Sync .editorconfig ([@KtsuTools](https://github.com/KtsuTools))
