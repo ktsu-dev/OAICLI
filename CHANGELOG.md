@@ -1,3 +1,7 @@
+## v1.0.0
+
+No significant changes detected since v1.0.0.
+
 ## v1.0.0 (major)
 
 - fix: bump ktsu.Extensions and ktsu.AppDataStorage off the leaked SourceLink ([@matt-edmondson](https://github.com/matt-edmondson))
