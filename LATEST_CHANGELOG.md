@@ -1,5 +1,12 @@
 ## v1.0.0 (major)
 
+- fix: bump ktsu.Extensions and ktsu.AppDataStorage off the leaked SourceLink ([@matt-edmondson](https://github.com/matt-edmondson))
+- test: populate OAICLI.Test so discovery finds tests to run ([@matt-edmondson](https://github.com/matt-edmondson))
+- fix: carry the response schema as JSON so a request can be serialized ([@matt-edmondson](https://github.com/matt-edmondson))
+- Gate Dependabot auto-merge on CI actually being green ([@Claude](https://github.com/Claude))
+- ci: adopt the consolidated .NET workflow [patch] ([@Claude](https://github.com/Claude))
+- ci: make the SonarQube quality gate opt in [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
+- ci: adopt the unified dotnet workflow [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
 - chore: store icon.png in LFS as .gitattributes declares ([@matt-edmondson](https://github.com/matt-edmondson))
 - docs: scope build badge to the default branch ([@matt-edmondson](https://github.com/matt-edmondson))
 - docs: correct README, DESCRIPTION and TAGS metadata ([@matt-edmondson](https://github.com/matt-edmondson))
