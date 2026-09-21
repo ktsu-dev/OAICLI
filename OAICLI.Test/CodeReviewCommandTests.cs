@@ -260,4 +260,140 @@ public sealed class CodeReviewCommandTests
 		Assert.AreEqual(0, settings.ContextFilePaths.Length);
 		Assert.IsFalse(settings.Force);
 	}
+
+	/// <summary>
+	/// A solution with two projects: the ordinary case, and the one the old insertion could not
+	/// survive. CRLF throughout, as a solution file written by Visual Studio is.
+	/// </summary>
+	private const string TwoProjectSolution =
+		"Microsoft Visual Studio Solution File, Format Version 12.00\r\n" +
+		"Project(\"{9A19103F-16F7-4668-BE54-9A1E7A4F7556}\") = \"App\", \"App\\App.csproj\", \"{11111111-1111-1111-1111-111111111111}\"\r\n" +
+		"EndProject\r\n" +
+		"Project(\"{9A19103F-16F7-4668-BE54-9A1E7A4F7556}\") = \"Lib\", \"Lib\\Lib.csproj\", \"{22222222-2222-2222-2222-222222222222}\"\r\n" +
+		"EndProject\r\n" +
+		"Global\r\n" +
+		"\tGlobalSection(SolutionProperties) = preSolution\r\n" +
+		"\t\tHideSolutionNode = FALSE\r\n" +
+		"\tEndGlobalSection\r\n" +
+		"EndGlobal\r\n";
+
+	/// <summary>
+	/// The entry to add, in the Unix-newline form the caller passes.
+	/// </summary>
+	private const string NewProjectEntry =
+		"Project(\"{9A19103F-16F7-4668-BE54-9A1E7A4F7556}\") = \"App.Test\", \"App.Test\\App.Test.csproj\", \"{33333333-3333-3333-3333-333333333333}\"\nEndProject";
+
+	/// <summary>
+	/// The entry must land once, however many projects the solution already has. Inserting it after
+	/// every existing EndProject gave each copy the same GUID, which neither Visual Studio nor
+	/// <c>dotnet sln</c> will load.
+	/// </summary>
+	[TestMethod]
+	public void InsertProjectEntryAddsTheEntryExactlyOnce()
+	{
+		string result = CodeReviewCommand.InsertProjectEntry(TwoProjectSolution, NewProjectEntry);
+
+		Assert.AreEqual(1, CountOccurrences(result, "App.Test\\App.Test.csproj"));
+		Assert.AreEqual(1, CountOccurrences(result, "{33333333-3333-3333-3333-333333333333}"));
+	}
+
+	/// <summary>
+	/// Every project must still be terminated afterwards. The old insertion consumed each existing
+	/// EndProject as the text it replaced, leaving the projects ahead of it unterminated.
+	/// </summary>
+	[TestMethod]
+	public void InsertProjectEntryKeepsEveryExistingProjectTerminated()
+	{
+		string result = CodeReviewCommand.InsertProjectEntry(TwoProjectSolution, NewProjectEntry);
+
+		Assert.AreEqual(3, CountOccurrences(result, "Project(\""), "Two existing projects plus the new one.");
+		Assert.AreEqual(3, CountLines(result, "EndProject"), "One terminator per project.");
+	}
+
+	/// <summary>
+	/// A solution folder's nested-project section must come through untouched. "EndProject" is a
+	/// prefix of "EndProjectSection", so replacing the former rewrote the latter as well.
+	/// </summary>
+	[TestMethod]
+	public void InsertProjectEntryLeavesNestedProjectSectionsIntact()
+	{
+		string withSection =
+			"Microsoft Visual Studio Solution File, Format Version 12.00\r\n" +
+			"Project(\"{2150E333-8FDC-42A3-9474-1A3956D46DE8}\") = \"Solution Items\", \"Solution Items\", \"{44444444-4444-4444-4444-444444444444}\"\r\n" +
+			"\tProjectSection(SolutionItems) = preProject\r\n" +
+			"\t\tREADME.md = README.md\r\n" +
+			"\tEndProjectSection\r\n" +
+			"EndProject\r\n" +
+			"Global\r\n" +
+			"EndGlobal\r\n";
+
+		string result = CodeReviewCommand.InsertProjectEntry(withSection, NewProjectEntry);
+
+		// The section markers survive even a blanket replace, so the count is what discriminates:
+		// "EndProject" occurs twice in this fixture -- once inside "EndProjectSection" -- and a
+		// replace of both inserts the entry twice, once of them splitting the section apart.
+		Assert.AreEqual(2, CountOccurrences(result, "Project(\""), "The solution folder plus the new project.");
+		Assert.AreEqual(1, CountLines(result, "ProjectSection(SolutionItems) = preProject"));
+		Assert.AreEqual(1, CountLines(result, "EndProjectSection"));
+		Assert.AreEqual(2, CountLines(result, "EndProject"), "One terminator for the folder, one for the new project.");
+		Assert.Contains("\t\tREADME.md = README.md", result);
+	}
+
+	/// <summary>
+	/// The entry belongs in the project list, which ends where the global section starts.
+	/// </summary>
+	[TestMethod]
+	public void InsertProjectEntryPutsTheEntryBeforeTheGlobalSection()
+	{
+		string result = CodeReviewCommand.InsertProjectEntry(TwoProjectSolution, NewProjectEntry);
+
+		int entryIndex = result.IndexOf("App.Test", StringComparison.Ordinal);
+		int globalIndex = result.IndexOf("\r\nGlobal\r\n", StringComparison.Ordinal);
+
+		Assert.IsGreaterThan(-1, entryIndex);
+		Assert.IsGreaterThan(-1, globalIndex);
+		Assert.IsLessThan(globalIndex, entryIndex, "The new project must be declared before the global section.");
+	}
+
+	/// <summary>
+	/// The edit must not leave the file carrying two newline conventions at once.
+	/// </summary>
+	[TestMethod]
+	public void InsertProjectEntryKeepsTheSolutionsLineEndings()
+	{
+		string crlf = CodeReviewCommand.InsertProjectEntry(TwoProjectSolution, NewProjectEntry);
+		string lf = CodeReviewCommand.InsertProjectEntry(TwoProjectSolution.Replace("\r\n", "\n", StringComparison.Ordinal), NewProjectEntry);
+
+		Assert.AreEqual(CountOccurrences(crlf, "\n"), CountOccurrences(crlf, "\r\n"), "A CRLF solution should gain no lone newline.");
+		Assert.AreEqual(0, CountOccurrences(lf, "\r"), "An LF solution should gain no carriage return.");
+	}
+
+	/// <summary>
+	/// Counts the lines that are exactly the given text, ignoring indentation. Substring counting
+	/// will not do here, because "EndProject" is a prefix of "EndProjectSection".
+	/// </summary>
+	/// <param name="content">The content to search.</param>
+	/// <param name="line">The line to count.</param>
+	/// <returns>The number of matching lines.</returns>
+	private static int CountLines(string content, string line) =>
+		content.Split('\n').Count(candidate => candidate.Trim() == line);
+
+	/// <summary>
+	/// Counts non-overlapping occurrences of a substring.
+	/// </summary>
+	/// <param name="content">The content to search.</param>
+	/// <param name="value">The substring to count.</param>
+	/// <returns>The number of occurrences.</returns>
+	private static int CountOccurrences(string content, string value)
+	{
+		int count = 0;
+		int index = content.IndexOf(value, StringComparison.Ordinal);
+		while (index >= 0)
+		{
+			count++;
+			index = content.IndexOf(value, index + value.Length, StringComparison.Ordinal);
+		}
+
+		return count;
+	}
 }
