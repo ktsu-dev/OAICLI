@@ -18,8 +18,7 @@ internal class Request
 	{
 		Auth.EnsureHasApiKey();
 
-		using HttpClient client = new();
-		client.DefaultRequestHeaders.Add("Authorization", $"Bearer {AppData.Get().ApiKey}");
+		using HttpClient client = Auth.GetClient();
 
 		RequestBody requestBody = new()
 		{
