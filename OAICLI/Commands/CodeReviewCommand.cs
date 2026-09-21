@@ -136,14 +136,16 @@ internal abstract class CodeReviewCommand : Command<CodeReviewCommand.Settings>
 	/// never reached the API has no status, and saying so is the difference between "your key is
 	/// wrong" and "your network is down".
 	/// </remarks>
-	/// <param name="ex">The failure to describe.</param>
+	/// <param name="ex">The failure to describe, which <see cref="SendRequest"/> has already narrowed
+	/// to a rejection, a send that did not happen, or a timeout.</param>
 	/// <returns>The message to report.</returns>
 	private static string Describe(Exception ex) => ex switch
 	{
 		HttpRequestException { StatusCode: not null } rejected => rejected.Message,
 		HttpRequestException unsent => $"The OpenAI API request could not be sent: {unsent.Message}",
-		TaskCanceledException timedOut => $"The OpenAI API request timed out: {timedOut.Message}",
-		_ => ex.Message,
+
+		// Everything else SendRequest catches is a timeout; it does not reach here by any other route.
+		_ => $"The OpenAI API request timed out: {ex.Message}",
 	};
 
 	/// <summary>
