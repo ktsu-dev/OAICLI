@@ -6,6 +6,8 @@ using System.Net.Http.Headers;
 using ktsu.CredentialCache;
 using ktsu.CredentialCache.Storage;
 using ktsu.Semantics.Strings;
+using Spectre.Console;
+using Spectre.Console.Testing;
 using CredentialCache = ktsu.CredentialCache.CredentialCache;
 
 /// <summary>
@@ -288,5 +290,120 @@ public sealed class AuthTests
 		Assert.IsTrue(cache.TryGet(SemanticString<PersonaGUID>.Create(Auth.OpenAiPersonaId), out Credential? credential));
 		Assert.IsInstanceOfType<CredentialWithToken>(credential);
 		Assert.AreEqual("sk-stored-key", ((CredentialWithToken)credential!).Token.ToString());
+	}
+
+	/// <summary>
+	/// Runs <paramref name="body"/> against a console that replays <paramref name="entries"/> as if
+	/// they had been typed.
+	/// </summary>
+	private static void WithTypedInput(Action body, params string[] entries)
+	{
+		IAnsiConsole original = AnsiConsole.Console;
+		try
+		{
+			TestConsole console = new();
+			_ = console.Interactive();
+			foreach (string entry in entries)
+			{
+				console.Input.PushTextWithEnter(entry);
+			}
+
+			AnsiConsole.Console = console;
+			body();
+		}
+		finally
+		{
+			AnsiConsole.Console = original;
+		}
+	}
+
+	/// <summary>
+	/// With no key anywhere, the user is asked for one and it goes to the secret store.
+	/// </summary>
+	[TestMethod]
+	public void EnsureHasApiKeyStoresTheKeyTheUserTypes()
+	{
+		using CredentialCache cache = NewCache();
+		FakeLegacyApiKeyStore legacy = new(string.Empty);
+
+		WithTypedInput(() => Auth.EnsureHasApiKey(cache, legacy), "sk-typed-key");
+
+		Assert.IsTrue(Auth.TryGetApiKey(cache, out string stored));
+		Assert.AreEqual("sk-typed-key", stored);
+	}
+
+	/// <summary>
+	/// A blank answer is not a key, so the prompt comes back rather than storing an empty token and
+	/// moving on. The second entry is only reached if the first was rejected.
+	/// </summary>
+	[TestMethod]
+	public void EnsureHasApiKeyKeepsAskingUntilAKeyIsGiven()
+	{
+		using CredentialCache cache = NewCache();
+		FakeLegacyApiKeyStore legacy = new(string.Empty);
+
+		WithTypedInput(() => Auth.EnsureHasApiKey(cache, legacy), "   ", "sk-second-try");
+
+		Assert.IsTrue(Auth.TryGetApiKey(cache, out string stored));
+		Assert.AreEqual("sk-second-try", stored);
+	}
+
+	/// <summary>
+	/// A key already in the store means no prompt at all — the console is given no input, so any
+	/// prompt would fail rather than quietly succeed.
+	/// </summary>
+	[TestMethod]
+	public void EnsureHasApiKeyDoesNotPromptWhenAKeyIsStored()
+	{
+		using CredentialCache cache = NewCache();
+		Auth.StoreApiKey(cache, "sk-already-there");
+		FakeLegacyApiKeyStore legacy = new(string.Empty);
+
+		WithTypedInput(() => Auth.EnsureHasApiKey(cache, legacy));
+
+		Assert.IsTrue(Auth.TryGetApiKey(cache, out string stored));
+		Assert.AreEqual("sk-already-there", stored);
+	}
+
+	/// <summary>
+	/// The real legacy store reads the field earlier versions wrote, and clearing it blanks the
+	/// persisted copy rather than only the in-memory one.
+	/// </summary>
+	[TestMethod]
+	public void AppDataLegacyStoreReadsAndClearsThePersistedField()
+	{
+		AppDataLegacyApiKeyStore legacy = new();
+		AppData appData = AppData.Get();
+		appData.ApiKey = "sk-on-disk";
+		appData.Save();
+
+		try
+		{
+			Assert.AreEqual("sk-on-disk", legacy.Read());
+
+			legacy.Clear();
+
+			Assert.AreEqual(string.Empty, legacy.Read());
+			Assert.AreEqual(string.Empty, AppData.Get().ApiKey);
+		}
+		finally
+		{
+			AppData.Get().ApiKey = string.Empty;
+			AppData.Get().Save();
+		}
+	}
+
+	/// <summary>
+	/// Clearing an already-empty field does not write the file again.
+	/// </summary>
+	[TestMethod]
+	public void AppDataLegacyStoreClearIsANoOpWhenEmpty()
+	{
+		AppDataLegacyApiKeyStore legacy = new();
+		AppData.Get().ApiKey = string.Empty;
+
+		legacy.Clear();
+
+		Assert.AreEqual(string.Empty, legacy.Read());
 	}
 }
