@@ -84,6 +84,48 @@ public sealed class RequestFailureTests
 	}
 
 	/// <summary>
+	/// The exception's standard constructors, which <c>CA1032</c> requires it to carry alongside the
+	/// one the status check uses. A default-constructed instance reports no status and an empty body
+	/// rather than a null one, so a handler can read <see cref="RequestFailedException.ResponseBody"/>
+	/// without a null check whichever constructor was used.
+	/// </summary>
+	[TestMethod]
+	public void ADefaultConstructedExceptionCarriesNoStatusAndAnEmptyBody()
+	{
+		RequestFailedException exception = new();
+
+		Assert.IsNull(exception.StatusCode);
+		Assert.AreEqual(string.Empty, exception.ResponseBody);
+	}
+
+	/// <summary>
+	/// The message-only constructor keeps the message and still reports no status.
+	/// </summary>
+	[TestMethod]
+	public void AMessageOnlyExceptionKeepsItsMessage()
+	{
+		RequestFailedException exception = new("the request failed");
+
+		Assert.AreEqual("the request failed", exception.Message);
+		Assert.IsNull(exception.StatusCode);
+		Assert.AreEqual(string.Empty, exception.ResponseBody);
+	}
+
+	/// <summary>
+	/// The wrapping constructor keeps both the message and the exception that caused the failure.
+	/// </summary>
+	[TestMethod]
+	public void AWrappingExceptionKeepsItsInnerException()
+	{
+		HttpRequestException inner = new("Connection refused.");
+
+		RequestFailedException exception = new("the request failed", inner);
+
+		Assert.AreEqual("the request failed", exception.Message);
+		Assert.AreSame(inner, exception.InnerException);
+	}
+
+	/// <summary>
 	/// A request that came back successfully still exits zero.
 	/// </summary>
 	[TestMethod]
@@ -132,6 +174,32 @@ public sealed class RequestFailureTests
 			() => throw new AggregateException(new HttpRequestException("Connection refused.")));
 
 		Assert.AreEqual(CodeReviewCommand.RequestFailedExitCode, exitCode);
+	}
+
+	/// <summary>
+	/// A rejection that arrives wrapped is unwrapped on the same terms as a transport failure, so the
+	/// exit code does not depend on where in the blocking send path the failure surfaced.
+	/// </summary>
+	[TestMethod]
+	public void SendRequestReportsFailureWhenTheRejectionArrivesWrapped()
+	{
+		int exitCode = CodeReviewCommand.SendRequest(
+			() => throw new AggregateException(
+				new RequestFailedException(HttpStatusCode.Unauthorized, "Unauthorized", ErrorBody)));
+
+		Assert.AreEqual(CodeReviewCommand.RequestFailedExitCode, exitCode);
+	}
+
+	/// <summary>
+	/// A wrapped failure of some other kind is not the request's own, and must not be flattened into
+	/// an exit code that hides it.
+	/// </summary>
+	[TestMethod]
+	public void SendRequestDoesNotSwallowAnUnrelatedWrappedFailure()
+	{
+		_ = Assert.ThrowsExactly<AggregateException>(
+			() => CodeReviewCommand.SendRequest(
+				() => throw new AggregateException(new InvalidOperationException("no solution found"))));
 	}
 
 	/// <summary>
