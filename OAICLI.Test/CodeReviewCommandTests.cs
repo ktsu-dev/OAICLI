@@ -356,6 +356,63 @@ public sealed class CodeReviewCommandTests
 	}
 
 	/// <summary>
+	/// A solution with no global section has nothing to sit in front of, so the entry goes last. Both
+	/// trailing-newline shapes are checked, since the entry has to start on a line of its own either
+	/// way.
+	/// </summary>
+	[TestMethod]
+	public void InsertProjectEntryAppendsWhenThereIsNoGlobalSection()
+	{
+		const string withoutGlobal =
+			"Microsoft Visual Studio Solution File, Format Version 12.00\r\n" +
+			"Project(\"{9A19103F-16F7-4668-BE54-9A1E7A4F7556}\") = \"App\", \"App\\App.csproj\", \"{11111111-1111-1111-1111-111111111111}\"\r\n" +
+			"EndProject\r\n";
+
+		string terminated = CodeReviewCommand.InsertProjectEntry(withoutGlobal, NewProjectEntry);
+		string unterminated = CodeReviewCommand.InsertProjectEntry(withoutGlobal.TrimEnd('\r', '\n'), NewProjectEntry);
+
+		Assert.StartsWith(withoutGlobal, terminated, "The existing content should be left as it was, with the entry added after it.");
+		Assert.AreEqual(2, CountLines(terminated, "EndProject"), "The existing project plus the new one.");
+		Assert.AreEqual(2, CountLines(unterminated, "EndProject"), "A missing final newline must not run the two entries together.");
+	}
+
+	/// <summary>
+	/// The whole of <see cref="TestCommand"/>'s setup against a real solution on disk. The layout it
+	/// expects is a solution at the root with the project one directory below, named after it. This is
+	/// the path the corruption actually reached, so it is worth covering end to end rather than only
+	/// through the helper.
+	/// </summary>
+	[TestMethod]
+	public void TestCommandSetupAddsTheTestProjectToTheSolutionOnce()
+	{
+		// Arrange
+		string solutionPath = Path.Combine(workingDirectory, "Sample.sln");
+		File.WriteAllText(solutionPath, TwoProjectSolution);
+		string projectDirectory = Path.Combine(workingDirectory, "Sample");
+		_ = Directory.CreateDirectory(projectDirectory);
+		File.WriteAllText(Path.Combine(projectDirectory, "Sample.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\" />\r\n");
+
+		// Act -- setup discovers from the current directory, so it has to be moved and put back
+		string originalDirectory = Directory.GetCurrentDirectory();
+		try
+		{
+			Directory.SetCurrentDirectory(workingDirectory);
+			new TestCommand().Setup(new CodeReviewCommand.Settings());
+		}
+		finally
+		{
+			Directory.SetCurrentDirectory(originalDirectory);
+		}
+
+		// Assert -- one new entry, and every project still terminated
+		string updated = File.ReadAllText(solutionPath);
+		Assert.AreEqual(1, CountOccurrences(updated, "Sample.Test\\Sample.Test.csproj"), "The entry must be added exactly once.");
+		Assert.AreEqual(3, CountOccurrences(updated, "Project(\""), "The two existing projects plus the new one.");
+		Assert.AreEqual(3, CountLines(updated, "EndProject"), "One terminator per project.");
+		Assert.IsTrue(File.Exists(Path.Combine(workingDirectory, "Sample.Test", "Sample.Test.csproj")), "The test project itself should have been written.");
+	}
+
+	/// <summary>
 	/// The edit must not leave the file carrying two newline conventions at once.
 	/// </summary>
 	[TestMethod]
