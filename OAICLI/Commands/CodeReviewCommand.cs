@@ -114,23 +114,37 @@ internal abstract class CodeReviewCommand : Command<CodeReviewCommand.Settings>
 			_ = sendRequest();
 			return 0;
 		}
-		catch (RequestFailedException ex)
-		{
-			return ReportFailure(ex.Message);
-		}
 		catch (HttpRequestException ex)
 		{
-			return ReportFailure($"The OpenAI API request could not be sent: {ex.Message}");
+			return ReportFailure(Describe(ex));
 		}
-		catch (AggregateException ex) when (ex.InnerException is RequestFailedException or HttpRequestException or TaskCanceledException)
+		catch (AggregateException ex) when (ex.InnerException is HttpRequestException or TaskCanceledException)
 		{
-			return ReportFailure(ex.InnerException.Message);
+			return ReportFailure(Describe(ex.InnerException));
 		}
 		catch (TaskCanceledException ex)
 		{
-			return ReportFailure($"The OpenAI API request timed out: {ex.Message}");
+			return ReportFailure(Describe(ex));
 		}
 	}
+
+	/// <summary>
+	/// Puts a failure into the terms the person running the command needs.
+	/// </summary>
+	/// <remarks>
+	/// A request the API rejected already carries its status and error body in the message. One that
+	/// never reached the API has no status, and saying so is the difference between "your key is
+	/// wrong" and "your network is down".
+	/// </remarks>
+	/// <param name="ex">The failure to describe.</param>
+	/// <returns>The message to report.</returns>
+	private static string Describe(Exception ex) => ex switch
+	{
+		HttpRequestException { StatusCode: not null } rejected => rejected.Message,
+		HttpRequestException unsent => $"The OpenAI API request could not be sent: {unsent.Message}",
+		TaskCanceledException timedOut => $"The OpenAI API request timed out: {timedOut.Message}",
+		_ => ex.Message,
+	};
 
 	/// <summary>
 	/// Writes the failure to the console and hands back the exit code that goes with it.

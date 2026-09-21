@@ -77,77 +77,26 @@ internal class Request
 	/// <param name="reasonPhrase">The reason phrase accompanying <paramref name="statusCode"/>, if any.</param>
 	/// <param name="responseJson">The body of the response, error or otherwise.</param>
 	/// <returns><paramref name="responseJson"/>, when the request succeeded.</returns>
-	/// <exception cref="RequestFailedException">The request did not succeed.</exception>
+	/// <exception cref="HttpRequestException">
+	/// The request did not succeed. Its <see cref="HttpRequestException.StatusCode"/> carries the
+	/// status the API answered with, which is what distinguishes a rejected request from one that
+	/// never reached the API at all.
+	/// </exception>
 	internal static string EnsureSuccessful(HttpStatusCode statusCode, string? reasonPhrase, string responseJson)
 	{
 		bool succeeded = (int)statusCode is >= 200 and <= 299;
-		string header = succeeded
-			? "Response"
-			: $"Response ({(int)statusCode} {reasonPhrase ?? statusCode.ToString()})";
+		string status = $"{(int)statusCode} {reasonPhrase ?? statusCode.ToString()}";
 
 		AnsiConsole.Write(new Panel(new JsonText(responseJson))
 			.BorderColor(succeeded ? Color.Green : Color.Red)
-			.Header(header));
+			.Header(succeeded ? "Response" : $"Response ({status})"));
 
 		return succeeded
 			? responseJson
-			: throw new RequestFailedException(statusCode, reasonPhrase, responseJson);
-	}
-}
-
-/// <summary>
-/// Thrown when the OpenAI API rejects a request, carrying enough of the answer to explain why.
-/// </summary>
-internal sealed class RequestFailedException : Exception
-{
-	/// <summary>
-	/// Gets the status code the API rejected the request with, where one was received.
-	/// </summary>
-	public HttpStatusCode? StatusCode { get; }
-
-	/// <summary>
-	/// Gets the body of the rejected response, which normally carries the API's own error message.
-	/// </summary>
-	public string ResponseBody { get; } = string.Empty;
-
-	/// <summary>
-	/// Initializes a new instance of the <see cref="RequestFailedException"/> class describing a
-	/// rejected response.
-	/// </summary>
-	/// <param name="statusCode">The status code the API answered with.</param>
-	/// <param name="reasonPhrase">The reason phrase accompanying <paramref name="statusCode"/>, if any.</param>
-	/// <param name="responseBody">The body of the rejected response.</param>
-	public RequestFailedException(HttpStatusCode statusCode, string? reasonPhrase, string responseBody)
-		: base($"The OpenAI API request failed with {(int)statusCode} {reasonPhrase ?? statusCode.ToString()}.")
-	{
-		StatusCode = statusCode;
-		ResponseBody = responseBody;
-	}
-
-	/// <summary>
-	/// Initializes a new instance of the <see cref="RequestFailedException"/> class.
-	/// </summary>
-	public RequestFailedException()
-	{
-	}
-
-	/// <summary>
-	/// Initializes a new instance of the <see cref="RequestFailedException"/> class.
-	/// </summary>
-	/// <param name="message">The message describing the failure.</param>
-	public RequestFailedException(string message)
-		: base(message)
-	{
-	}
-
-	/// <summary>
-	/// Initializes a new instance of the <see cref="RequestFailedException"/> class.
-	/// </summary>
-	/// <param name="message">The message describing the failure.</param>
-	/// <param name="innerException">The exception that caused this one.</param>
-	public RequestFailedException(string message, Exception innerException)
-		: base(message, innerException)
-	{
+			: throw new HttpRequestException(
+				$"The OpenAI API request failed with {status}: {responseJson}",
+				inner: null,
+				statusCode);
 	}
 }
 

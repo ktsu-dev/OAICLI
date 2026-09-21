@@ -51,7 +51,7 @@ public sealed class RequestFailureTests
 	[DataRow(HttpStatusCode.MultipleChoices, DisplayName = "300, just outside the success range")]
 	public void EnsureSuccessfulThrowsForARejectedResponse(HttpStatusCode statusCode)
 	{
-		_ = Assert.ThrowsExactly<RequestFailedException>(
+		_ = Assert.ThrowsExactly<HttpRequestException>(
 			() => Request.EnsureSuccessful(statusCode, "Unauthorized", ErrorBody));
 	}
 
@@ -62,12 +62,12 @@ public sealed class RequestFailureTests
 	[TestMethod]
 	public void EnsureSuccessfulCarriesTheStatusCodeAndBodyOnTheException()
 	{
-		RequestFailedException exception = Assert.ThrowsExactly<RequestFailedException>(
+		HttpRequestException exception = Assert.ThrowsExactly<HttpRequestException>(
 			() => Request.EnsureSuccessful(HttpStatusCode.Unauthorized, "Unauthorized", ErrorBody));
 
 		Assert.AreEqual(HttpStatusCode.Unauthorized, exception.StatusCode);
-		Assert.AreEqual(ErrorBody, exception.ResponseBody);
-		StringAssert.Contains(exception.Message, "401", StringComparison.Ordinal);
+		Assert.Contains("401", exception.Message, StringComparison.Ordinal);
+		Assert.Contains("invalid_api_key", exception.Message, StringComparison.Ordinal);
 	}
 
 	/// <summary>
@@ -77,52 +77,10 @@ public sealed class RequestFailureTests
 	[TestMethod]
 	public void EnsureSuccessfulNamesTheStatusWhenThereIsNoReasonPhrase()
 	{
-		RequestFailedException exception = Assert.ThrowsExactly<RequestFailedException>(
+		HttpRequestException exception = Assert.ThrowsExactly<HttpRequestException>(
 			() => Request.EnsureSuccessful(HttpStatusCode.TooManyRequests, null, ErrorBody));
 
-		StringAssert.Contains(exception.Message, nameof(HttpStatusCode.TooManyRequests), StringComparison.Ordinal);
-	}
-
-	/// <summary>
-	/// The exception's standard constructors, which <c>CA1032</c> requires it to carry alongside the
-	/// one the status check uses. A default-constructed instance reports no status and an empty body
-	/// rather than a null one, so a handler can read <see cref="RequestFailedException.ResponseBody"/>
-	/// without a null check whichever constructor was used.
-	/// </summary>
-	[TestMethod]
-	public void ADefaultConstructedExceptionCarriesNoStatusAndAnEmptyBody()
-	{
-		RequestFailedException exception = new();
-
-		Assert.IsNull(exception.StatusCode);
-		Assert.AreEqual(string.Empty, exception.ResponseBody);
-	}
-
-	/// <summary>
-	/// The message-only constructor keeps the message and still reports no status.
-	/// </summary>
-	[TestMethod]
-	public void AMessageOnlyExceptionKeepsItsMessage()
-	{
-		RequestFailedException exception = new("the request failed");
-
-		Assert.AreEqual("the request failed", exception.Message);
-		Assert.IsNull(exception.StatusCode);
-		Assert.AreEqual(string.Empty, exception.ResponseBody);
-	}
-
-	/// <summary>
-	/// The wrapping constructor keeps both the message and the exception that caused the failure.
-	/// </summary>
-	[TestMethod]
-	public void AWrappingExceptionKeepsItsInnerException()
-	{
-		HttpRequestException inner = new("Connection refused.");
-
-		RequestFailedException exception = new("the request failed", inner);
-
-		Assert.AreEqual("the request failed", exception.Message);
-		Assert.AreSame(inner, exception.InnerException);
+		Assert.Contains(nameof(HttpStatusCode.TooManyRequests), exception.Message, StringComparison.Ordinal);
 	}
 
 	/// <summary>
@@ -185,7 +143,7 @@ public sealed class RequestFailureTests
 	{
 		int exitCode = CodeReviewCommand.SendRequest(
 			() => throw new AggregateException(
-				new RequestFailedException(HttpStatusCode.Unauthorized, "Unauthorized", ErrorBody)));
+				new HttpRequestException("rejected", inner: null, HttpStatusCode.Unauthorized)));
 
 		Assert.AreEqual(CodeReviewCommand.RequestFailedExitCode, exitCode);
 	}
