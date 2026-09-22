@@ -170,6 +170,45 @@ internal abstract class CodeReviewCommand : Command<CodeReviewCommand.Settings>
 		return contentModified;
 	}
 
+	/// <summary>
+	/// Adds one project entry to a solution's project list, immediately before the first global
+	/// section.
+	/// </summary>
+	/// <remarks>
+	/// Anchored on the <c>Global</c> line rather than on an <c>EndProject</c> one. Replacing
+	/// "EndProject" rewrote every occurrence of it: each existing project gained a copy of the new
+	/// entry, all sharing one GUID, and lost its own terminator to the replacement -- so no solution
+	/// with more than one project survived. "EndProject" is also a prefix of "EndProjectSection", so
+	/// a solution carrying solution folders or nested-project sections had those mangled too.
+	/// <para>
+	/// The entry is passed in with Unix newlines and converted to whatever the solution already uses,
+	/// so editing a file does not leave it with two conventions in it.
+	/// </para>
+	/// </remarks>
+	/// <param name="solutionContent">The solution file's current content.</param>
+	/// <param name="projectEntry">
+	/// The <c>Project(...)</c> through <c>EndProject</c> block to add, with Unix newlines and no
+	/// trailing one.
+	/// </param>
+	/// <returns>The solution content with the entry added once.</returns>
+	internal static string InsertProjectEntry(string solutionContent, string projectEntry)
+	{
+		LineEndingStyle lineEndings = solutionContent.DetermineLineEndings();
+		string block = $"{projectEntry}\n".NormalizeLineEndings(lineEndings);
+
+		// The project list ends where the first global section begins. GlobalSection lines are nested
+		// inside that section, so the first line starting with "Global" is always the section header.
+		int globalIndex = solutionContent.IndexOf("\nGlobal", StringComparison.Ordinal);
+		if (globalIndex < 0)
+		{
+			// No global section to sit in front of, so the entry goes last, on a line of its own.
+			string separator = solutionContent.EndsWith('\n') ? string.Empty : "\n".NormalizeLineEndings(lineEndings);
+			return string.Concat(solutionContent, separator, block);
+		}
+
+		return solutionContent.Insert(globalIndex + 1, block);
+	}
+
 	internal static string FindSolutionAbove(string path) =>
 	FindFileAbove(path, "*.sln");
 
@@ -456,8 +495,8 @@ namespace MyNamespace.Tests
 		{
 			string projectGuid = Guid.NewGuid().ToString("B").ToUpperInvariant();
 			string csprojGuid = "{9A19103F-16F7-4668-BE54-9A1E7A4F7556}";
-			string projectContent = $"\r\nProject(\"{csprojGuid}\") = \"{testProjectName}\", \"{testProjectName}\\{testProjectName}.csproj\", \"{{{projectGuid}}}\"\r\nEndProject";
-			solutionContent = solutionContent.Replace("EndProject", projectContent);
+			string projectEntry = $"Project(\"{csprojGuid}\") = \"{testProjectName}\", \"{testProjectName}\\{testProjectName}.csproj\", \"{{{projectGuid}}}\"\nEndProject";
+			solutionContent = InsertProjectEntry(solutionContent, projectEntry);
 			File.WriteAllText(solutionFilePath, solutionContent);
 		}
 	}
