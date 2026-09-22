@@ -1,6 +1,13 @@
-## v1.0.0
+## v1.0.1 (patch)
 
-No significant changes detected since v1.0.0.
+Changes since v1.0.0:
+
+- refactor: fold the timeout into Describe's final arm ([@Claude](https://github.com/Claude))
+- refactor: report rejections as HttpRequestException, not a bespoke type ([@Claude](https://github.com/Claude))
+- test: cover RequestFailedException's constructors and the wrapped rejection ([@Claude](https://github.com/Claude))
+- fix: exit non-zero when the OpenAI API rejects a request [patch] ([@Claude](https://github.com/Claude))
+- test: cover the no-global-section branch and the setup path end to end [patch] ([@Claude](https://github.com/Claude))
+- fix: insert the test project into a solution exactly once [patch] ([@Claude](https://github.com/Claude))
 
 ## v1.0.0 (major)
 
