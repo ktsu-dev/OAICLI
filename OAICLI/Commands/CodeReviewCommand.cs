@@ -4,6 +4,7 @@ namespace ktsu.OAICLI;
 
 using System.Diagnostics.CodeAnalysis;
 using ktsu.Extensions;
+using Spectre.Console;
 using Spectre.Console.Cli;
 
 internal abstract class CodeReviewCommand : Command<CodeReviewCommand.Settings>
@@ -24,12 +25,18 @@ internal abstract class CodeReviewCommand : Command<CodeReviewCommand.Settings>
 		public bool Force { get; init; }
 	}
 
+	/// <summary>
+	/// The exit code reported when the API request did not succeed, so a script gating on this tool
+	/// can tell a failed review from a completed one.
+	/// </summary>
+	internal const int RequestFailedExitCode = 1;
+
 	protected override int Execute([NotNull] CommandContext context, [NotNull] Settings settings, CancellationToken cancellationToken)
 	{
 		Setup(settings);
 
 		//string responseJson = OAICLI.MakeRequest(TaskRequest);
-		_ = TaskRequest.Send();
+		return SendRequest(TaskRequest.Send);
 		//var jsonNode = JsonNode.Parse(responseJson);
 		//var responseObj = jsonNode as JsonObject;
 		//var choicesArray = responseObj?["choices"] as JsonArray;
@@ -86,8 +93,70 @@ internal abstract class CodeReviewCommand : Command<CodeReviewCommand.Settings>
 		//		File.Delete(tmpFilePath);
 		//	}
 		//}
+	}
 
-		return 0;
+	/// <summary>
+	/// Runs the request and turns its outcome into an exit code.
+	/// </summary>
+	/// <remarks>
+	/// Returning zero regardless of what came back makes a rejected request — an expired key, a rate
+	/// limit, an unreachable endpoint — look to the caller exactly like a completed one, so the
+	/// failure has to reach the exit code and the console rather than being printed as a result.
+	/// </remarks>
+	/// <param name="sendRequest">Sends the request and returns the body of the response.</param>
+	/// <returns>Zero when the request succeeded, <see cref="RequestFailedExitCode"/> when it did not.</returns>
+	internal static int SendRequest([NotNull] Func<string> sendRequest)
+	{
+		Ensure.NotNull(sendRequest);
+
+		try
+		{
+			_ = sendRequest();
+			return 0;
+		}
+		catch (HttpRequestException ex)
+		{
+			return ReportFailure(Describe(ex));
+		}
+		catch (AggregateException ex) when (ex.InnerException is HttpRequestException or TaskCanceledException)
+		{
+			return ReportFailure(Describe(ex.InnerException));
+		}
+		catch (TaskCanceledException ex)
+		{
+			return ReportFailure(Describe(ex));
+		}
+	}
+
+	/// <summary>
+	/// Puts a failure into the terms the person running the command needs.
+	/// </summary>
+	/// <remarks>
+	/// A request the API rejected already carries its status and error body in the message. One that
+	/// never reached the API has no status, and saying so is the difference between "your key is
+	/// wrong" and "your network is down".
+	/// </remarks>
+	/// <param name="ex">The failure to describe, which <see cref="SendRequest"/> has already narrowed
+	/// to a rejection, a send that did not happen, or a timeout.</param>
+	/// <returns>The message to report.</returns>
+	private static string Describe(Exception ex) => ex switch
+	{
+		HttpRequestException { StatusCode: not null } rejected => rejected.Message,
+		HttpRequestException unsent => $"The OpenAI API request could not be sent: {unsent.Message}",
+
+		// Everything else SendRequest catches is a timeout; it does not reach here by any other route.
+		_ => $"The OpenAI API request timed out: {ex.Message}",
+	};
+
+	/// <summary>
+	/// Writes the failure to the console and hands back the exit code that goes with it.
+	/// </summary>
+	/// <param name="message">The failure to report.</param>
+	/// <returns><see cref="RequestFailedExitCode"/>.</returns>
+	private static int ReportFailure(string message)
+	{
+		AnsiConsole.MarkupLineInterpolated($"[red]{message}[/]");
+		return RequestFailedExitCode;
 	}
 
 	internal static string EnsureTrainingNewLine(string contentOriginal, string contentModified)
