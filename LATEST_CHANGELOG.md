@@ -1,4 +1,4 @@
-## v1.0.1 (patch)
+## v1.1.0 (minor)
 
 Changes since v1.0.0:
 
@@ -8,4 +8,6 @@ Changes since v1.0.0:
 - fix: exit non-zero when the OpenAI API rejects a request [patch] ([@Claude](https://github.com/Claude))
 - test: cover the no-global-section branch and the setup path end to end [patch] ([@Claude](https://github.com/Claude))
 - fix: insert the test project into a solution exactly once [patch] ([@Claude](https://github.com/Claude))
+- test: cover the prompt loop and the legacy app data store ([@Claude](https://github.com/Claude))
+- feat: keep the OpenAI API key in the OS secret store [minor] ([@Claude](https://github.com/Claude))
 
