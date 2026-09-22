@@ -6,7 +6,9 @@
   <ItemGroup>
     <PackageReference Include="CommandLineParser" />
     <PackageReference Include="ktsu.AppDataStorage" />
+    <PackageReference Include="ktsu.CredentialCache" />
     <PackageReference Include="ktsu.Extensions" />
+    <PackageReference Include="ktsu.Semantics.Strings" />
     <PackageReference Include="NJsonSchema" />
     <PackageReference Include="Polyfill" PrivateAssets="all" />
     <PackageReference Include="Spectre.Console" />

@@ -27,7 +27,17 @@ OAICLI scans the current `.sln` and `.csproj` files, gathers C# source files, an
 
 ## Auth
 
-On first run the tool prompts for an OpenAI API key and stores it locally via `ktsu.AppDataStorage` (typically `%APPDATA%\ktsu\OAICLI` on Windows). Subsequent runs reuse the stored key.
+On first run the tool prompts for an OpenAI API key and stores it in the operating system's secret store via
+`ktsu.CredentialCache` — Windows Credential Manager, macOS Keychain, or libsecret (Secret Service) on Linux.
+Subsequent runs reuse the stored key.
+
+A key saved by an earlier version, which kept it in plaintext in `ktsu.AppDataStorage`'s JSON file (typically
+`%APPDATA%\ktsu\OAICLI` on Windows), is migrated into the secret store on the next run and blanked in the old
+file. Nothing needs to be re-entered.
+
+If no secret store is available — most often a Linux host with no Secret Service provider installed and unlocked,
+which is common over SSH and in containers — the tool reports that and stops. It does not fall back to writing the
+key to a plain file.
 
 ## Installation
 
