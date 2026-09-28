@@ -113,12 +113,35 @@ public sealed class JsonSerializationTests
 		string json = JsonSerializer.Serialize(requestBody, Json.SerializerOptions);
 
 		using JsonDocument document = JsonDocument.Parse(json);
-		JsonElement schema = document.RootElement.GetProperty("response_format").GetProperty("schema");
+		JsonElement schema = document.RootElement.GetProperty("response_format").GetProperty("json_schema").GetProperty("schema");
 		Assert.AreEqual(JsonValueKind.Object, schema.ValueKind);
 		JsonElement properties = schema.GetProperty("properties");
 		Assert.IsTrue(properties.TryGetProperty("Summary", out _));
 		Assert.IsTrue(properties.TryGetProperty("Files", out _));
 		Assert.IsTrue(properties.TryGetProperty("CommitMessage", out _));
+	}
+
+	/// <summary>
+	/// The Chat Completions API reads a structured-output schema from
+	/// <c>response_format.json_schema</c> and requires it to be named. A schema placed directly on
+	/// <c>response_format</c> is rejected with a 400, so every request failed before the model saw it.
+	/// </summary>
+	[TestMethod]
+	public void ResponseFormatNestsANamedSchemaUnderJsonSchema()
+	{
+		RequestBody requestBody = new() { Model = "gpt-4o" };
+
+		string json = JsonSerializer.Serialize(requestBody, Json.SerializerOptions);
+
+		using JsonDocument document = JsonDocument.Parse(json);
+		JsonElement responseFormat = document.RootElement.GetProperty("response_format");
+		Assert.AreEqual("json_schema", responseFormat.GetProperty("type").GetString());
+		Assert.IsFalse(responseFormat.TryGetProperty("schema", out _));
+
+		JsonElement jsonSchema = responseFormat.GetProperty("json_schema");
+		Assert.AreEqual("response", jsonSchema.GetProperty("name").GetString());
+		Assert.AreEqual(JsonValueKind.Object, jsonSchema.GetProperty("schema").ValueKind);
+		Assert.IsFalse(jsonSchema.GetProperty("strict").GetBoolean());
 	}
 
 	/// <summary>
