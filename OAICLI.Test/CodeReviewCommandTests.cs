@@ -426,6 +426,152 @@ public sealed class CodeReviewCommandTests
 	}
 
 	/// <summary>
+	/// A solution that declares configurations and maps its one project onto them, as Visual Studio
+	/// and <c>dotnet new sln</c> write it.
+	/// </summary>
+	private const string ConfiguredSolution =
+		"Microsoft Visual Studio Solution File, Format Version 12.00\r\n" +
+		"Project(\"{9A19103F-16F7-4668-BE54-9A1E7A4F7556}\") = \"Sample\", \"Sample\\Sample.csproj\", \"{11111111-1111-1111-1111-111111111111}\"\r\n" +
+		"EndProject\r\n" +
+		"Global\r\n" +
+		"\tGlobalSection(SolutionConfigurationPlatforms) = preSolution\r\n" +
+		"\t\tDebug|Any CPU = Debug|Any CPU\r\n" +
+		"\t\tRelease|Any CPU = Release|Any CPU\r\n" +
+		"\tEndGlobalSection\r\n" +
+		"\tGlobalSection(ProjectConfigurationPlatforms) = postSolution\r\n" +
+		"\t\t{11111111-1111-1111-1111-111111111111}.Debug|Any CPU.ActiveCfg = Debug|Any CPU\r\n" +
+		"\t\t{11111111-1111-1111-1111-111111111111}.Debug|Any CPU.Build.0 = Debug|Any CPU\r\n" +
+		"\t\t{11111111-1111-1111-1111-111111111111}.Release|Any CPU.ActiveCfg = Release|Any CPU\r\n" +
+		"\t\t{11111111-1111-1111-1111-111111111111}.Release|Any CPU.Build.0 = Release|Any CPU\r\n" +
+		"\tEndGlobalSection\r\n" +
+		"EndGlobal\r\n";
+
+	/// <summary>
+	/// Runs <see cref="TestCommand"/>'s setup against a solution on disk laid out as it expects: the
+	/// solution at the root and a <c>Sample</c> project one directory below it.
+	/// </summary>
+	/// <param name="solutionContent">The solution file to start from.</param>
+	/// <returns>The solution file's content after setup.</returns>
+	private string RunTestCommandSetup(string solutionContent)
+	{
+		string solutionPath = Path.Combine(workingDirectory, "Sample.sln");
+		File.WriteAllText(solutionPath, solutionContent);
+		string projectDirectory = Path.Combine(workingDirectory, "Sample");
+		_ = Directory.CreateDirectory(projectDirectory);
+		File.WriteAllText(Path.Combine(projectDirectory, "Sample.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\" />\r\n");
+
+		string originalDirectory = Directory.GetCurrentDirectory();
+		try
+		{
+			Directory.SetCurrentDirectory(workingDirectory);
+			new TestCommand().Setup(new CodeReviewCommand.Settings());
+		}
+		finally
+		{
+			Directory.SetCurrentDirectory(originalDirectory);
+		}
+
+		return File.ReadAllText(solutionPath);
+	}
+
+	/// <summary>
+	/// Reads the GUID a solution gives the generated <c>Sample.Test</c> project.
+	/// </summary>
+	/// <param name="solutionContent">The solution file's content.</param>
+	/// <returns>The quoted GUID from the project's entry, braces included.</returns>
+	private static string TestProjectGuid(string solutionContent)
+	{
+		string entry = solutionContent.Split('\n').Single(line => line.Contains("\"Sample.Test\\Sample.Test.csproj\"", StringComparison.Ordinal));
+		return entry.Split(',')[2].Trim().Trim('"');
+	}
+
+	/// <summary>
+	/// The project GUID must carry one pair of braces. <c>ToString("B")</c> already adds them, and
+	/// wrapping it in another pair wrote <c>{{...}}</c>, which is not a GUID at all.
+	/// </summary>
+	[TestMethod]
+	public void TestCommandSetupWritesAProjectGuidWithOnePairOfBraces()
+	{
+		string updated = RunTestCommandSetup(ConfiguredSolution);
+
+		string guid = TestProjectGuid(updated);
+		Assert.IsTrue(Guid.TryParseExact(guid, "B", out _), $"Expected a braced GUID, got {guid}.");
+	}
+
+	/// <summary>
+	/// A project the solution does not map onto a configuration is listed but never built, so a
+	/// solution build or <c>dotnet test</c> skipped the generated tests without a word.
+	/// </summary>
+	[TestMethod]
+	public void TestCommandSetupMapsTheTestProjectOntoEverySolutionConfiguration()
+	{
+		string updated = RunTestCommandSetup(ConfiguredSolution);
+
+		string guid = TestProjectGuid(updated);
+		Assert.AreEqual(1, CountLines(updated, $"{guid}.Debug|Any CPU.ActiveCfg = Debug|Any CPU"));
+		Assert.AreEqual(1, CountLines(updated, $"{guid}.Debug|Any CPU.Build.0 = Debug|Any CPU"));
+		Assert.AreEqual(1, CountLines(updated, $"{guid}.Release|Any CPU.ActiveCfg = Release|Any CPU"));
+		Assert.AreEqual(1, CountLines(updated, $"{guid}.Release|Any CPU.Build.0 = Release|Any CPU"));
+		Assert.AreEqual(1, CountLines(updated, "GlobalSection(ProjectConfigurationPlatforms) = postSolution"));
+		Assert.AreEqual(CountOccurrences(updated, "\n"), CountOccurrences(updated, "\r\n"), "A CRLF solution should gain no lone newline.");
+	}
+
+	/// <summary>
+	/// A solution whose projects have not been mapped yet has no project configuration section, so
+	/// one has to be started for the new project.
+	/// </summary>
+	[TestMethod]
+	public void AddProjectConfigurationsStartsTheSectionWhenThereIsNone()
+	{
+		string withoutProjectSection =
+			"Global\n" +
+			"\tGlobalSection(SolutionConfigurationPlatforms) = preSolution\n" +
+			"\t\tDebug|x64 = Debug|x64\n" +
+			"\tEndGlobalSection\n" +
+			"EndGlobal\n";
+
+		string result = CodeReviewCommand.AddProjectConfigurations(withoutProjectSection, "{33333333-3333-3333-3333-333333333333}");
+
+		string[] lines = [.. result.Split('\n').Select(line => line.Trim())];
+		int header = Array.IndexOf(lines, "GlobalSection(ProjectConfigurationPlatforms) = postSolution");
+		Assert.IsGreaterThan(Array.IndexOf(lines, "EndGlobalSection"), header, "The section belongs after the solution's own configurations.");
+		Assert.AreEqual("{33333333-3333-3333-3333-333333333333}.Debug|x64.ActiveCfg = Debug|Any CPU", lines[header + 1]);
+		Assert.AreEqual("{33333333-3333-3333-3333-333333333333}.Debug|x64.Build.0 = Debug|Any CPU", lines[header + 2]);
+		Assert.AreEqual("EndGlobalSection", lines[header + 3]);
+	}
+
+	/// <summary>
+	/// A sibling whose name merely starts with the test project's, such as <c>Sample.Tests</c>, is
+	/// not the test project. The old substring check took it for one and skipped the entry, while
+	/// still writing the project to disk.
+	/// </summary>
+	[TestMethod]
+	public void TestCommandSetupAddsTheTestProjectBesideASiblingWithALongerName()
+	{
+		string withTests = ConfiguredSolution.Replace(
+			"EndProject\r\nGlobal",
+			"EndProject\r\nProject(\"{9A19103F-16F7-4668-BE54-9A1E7A4F7556}\") = \"Sample.Tests\", \"Sample.Tests\\Sample.Tests.csproj\", \"{22222222-2222-2222-2222-222222222222}\"\r\nEndProject\r\nGlobal",
+			StringComparison.Ordinal);
+
+		string updated = RunTestCommandSetup(withTests);
+
+		Assert.AreEqual(1, CountOccurrences(updated, "\"Sample.Test\\Sample.Test.csproj\""));
+		Assert.AreEqual(1, CountOccurrences(updated, "\"Sample.Tests\\Sample.Tests.csproj\""));
+	}
+
+	/// <summary>
+	/// Running setup twice must not add the project, or its configurations, a second time.
+	/// </summary>
+	[TestMethod]
+	public void TestCommandSetupIsIdempotentForAConfiguredSolution()
+	{
+		string once = RunTestCommandSetup(ConfiguredSolution);
+		string twice = RunTestCommandSetup(once);
+
+		Assert.AreEqual(once, twice);
+	}
+
+	/// <summary>
 	/// Counts the lines that are exactly the given text, ignoring indentation. Substring counting
 	/// will not do here, because "EndProject" is a prefix of "EndProjectSection".
 	/// </summary>

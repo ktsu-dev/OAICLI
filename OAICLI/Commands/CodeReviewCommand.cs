@@ -209,6 +209,75 @@ internal abstract class CodeReviewCommand : Command<CodeReviewCommand.Settings>
 		return solutionContent.Insert(globalIndex + 1, block);
 	}
 
+	/// <summary>
+	/// Maps a project onto every configuration the solution declares.
+	/// </summary>
+	/// <remarks>
+	/// A project with no <c>ProjectConfigurationPlatforms</c> lines is listed by the solution but
+	/// never built by it, so <c>dotnet build</c> and <c>dotnet test</c> on the solution skip it
+	/// without a word. Each solution configuration is mapped to the same configuration on
+	/// <c>Any CPU</c>, which is what <c>dotnet sln add</c> writes for an SDK-style project.
+	/// </remarks>
+	/// <param name="solutionContent">The solution file's current content.</param>
+	/// <param name="projectGuid">The project's GUID, braces included.</param>
+	/// <returns>
+	/// The solution content with the project's configuration lines added, or unchanged when the
+	/// solution declares no configurations.
+	/// </returns>
+	internal static string AddProjectConfigurations(string solutionContent, string projectGuid)
+	{
+		const string solutionConfigurationsHeader = "GlobalSection(SolutionConfigurationPlatforms) = preSolution";
+		const string projectConfigurationsHeader = "GlobalSection(ProjectConfigurationPlatforms) = postSolution";
+		const string sectionEnd = "EndGlobalSection";
+
+		LineEndingStyle lineEndings = solutionContent.DetermineLineEndings();
+		List<string> lines = [.. solutionContent.Split('\n').Select(line => line.TrimEnd('\r'))];
+
+		int solutionConfigurationsStart = lines.FindIndex(line => line.Trim() == solutionConfigurationsHeader);
+		if (solutionConfigurationsStart < 0)
+		{
+			return solutionContent;
+		}
+
+		int solutionConfigurationsEnd = lines.FindIndex(solutionConfigurationsStart, line => line.Trim() == sectionEnd);
+		if (solutionConfigurationsEnd < 0)
+		{
+			return solutionContent;
+		}
+
+		List<string> configurations = [.. lines
+			.Skip(solutionConfigurationsStart + 1)
+			.Take(solutionConfigurationsEnd - solutionConfigurationsStart - 1)
+			.Select(line => line.Split('=')[0].Trim())
+			.Where(configuration => configuration.Length > 0)];
+		if (configurations.Count == 0)
+		{
+			return solutionContent;
+		}
+
+		List<string> mappings = [];
+		foreach (string configuration in configurations)
+		{
+			string projectConfiguration = $"{configuration.Split('|')[0]}|Any CPU";
+			mappings.Add($"\t\t{projectGuid}.{configuration}.ActiveCfg = {projectConfiguration}");
+			mappings.Add($"\t\t{projectGuid}.{configuration}.Build.0 = {projectConfiguration}");
+		}
+
+		int projectConfigurationsStart = lines.FindIndex(line => line.Trim() == projectConfigurationsHeader);
+		if (projectConfigurationsStart < 0)
+		{
+			// No project has been mapped yet, so the section itself goes in after the solution's own.
+			lines.InsertRange(solutionConfigurationsEnd + 1, [$"\t{projectConfigurationsHeader}", .. mappings, $"\t{sectionEnd}"]);
+		}
+		else
+		{
+			int projectConfigurationsEnd = lines.FindIndex(projectConfigurationsStart, line => line.Trim() == sectionEnd);
+			lines.InsertRange(projectConfigurationsEnd, mappings);
+		}
+
+		return string.Join("\n", lines).NormalizeLineEndings(lineEndings);
+	}
+
 	internal static string FindSolutionAbove(string path) =>
 	FindFileAbove(path, "*.sln");
 
@@ -489,14 +558,16 @@ namespace MyNamespace.Tests
 			File.WriteAllText(testFilePath, $"namespace ktsu.{testProjectName};\r\n\r\n[TestClass]\r\npublic class {testClassName}\r\n{{\r\n}}\r\n");
 		}
 
-		// add the test project to the solution
+		// add the test project to the solution, matching its exact path so that a sibling whose name
+		// merely starts with the same text (Sample.Tests, Sample.TestHelpers) does not count as it
 		string solutionContent = File.ReadAllText(solutionFilePath);
-		if (!solutionContent.Contains(testProjectName))
+		if (!solutionContent.Contains($"\"{testProjectName}\\{testProjectName}.csproj\"", StringComparison.OrdinalIgnoreCase))
 		{
 			string projectGuid = Guid.NewGuid().ToString("B").ToUpperInvariant();
 			string csprojGuid = "{9A19103F-16F7-4668-BE54-9A1E7A4F7556}";
-			string projectEntry = $"Project(\"{csprojGuid}\") = \"{testProjectName}\", \"{testProjectName}\\{testProjectName}.csproj\", \"{{{projectGuid}}}\"\nEndProject";
+			string projectEntry = $"Project(\"{csprojGuid}\") = \"{testProjectName}\", \"{testProjectName}\\{testProjectName}.csproj\", \"{projectGuid}\"\nEndProject";
 			solutionContent = InsertProjectEntry(solutionContent, projectEntry);
+			solutionContent = AddProjectConfigurations(solutionContent, projectGuid);
 			File.WriteAllText(solutionFilePath, solutionContent);
 		}
 	}
