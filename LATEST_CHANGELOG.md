@@ -1,6 +1,6 @@
-## v1.1.2 (patch)
+## v1.1.3 (patch)
 
-Changes since v1.1.1:
+Changes since v1.1.2:
 
-- fix: report a non-JSON error body with its status instead of crashing [patch] ([@Claude](https://github.com/Claude))
+- Move CI onto the shared ci-shared.yml pipeline ([@Claude](https://github.com/Claude))
 
