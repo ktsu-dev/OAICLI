@@ -8,6 +8,7 @@ using System.Text;
 using System.Text.Json;
 using Spectre.Console;
 using Spectre.Console.Json;
+using Spectre.Console.Rendering;
 
 internal class Request
 {
@@ -86,7 +87,7 @@ internal class Request
 		bool succeeded = (int)statusCode is >= 200 and <= 299;
 		string status = $"{(int)statusCode} {reasonPhrase ?? statusCode.ToString()}";
 
-		AnsiConsole.Write(new Panel(new JsonText(responseJson))
+		AnsiConsole.Write(new Panel(RenderBody(responseJson))
 			.BorderColor(succeeded ? Color.Green : Color.Red)
 			.Header(succeeded ? "Response" : $"Response ({status})"));
 
@@ -96,6 +97,34 @@ internal class Request
 				$"The OpenAI API request failed with {status}: {responseJson}",
 				inner: null,
 				statusCode);
+	}
+
+	/// <summary>
+	/// Renders a response body as JSON when it is JSON, and as plain text otherwise.
+	/// </summary>
+	/// <remarks>
+	/// Gateways and proxies answer errors with HTML or an empty body. Rendering those with
+	/// <see cref="JsonText"/> throws before the status code is checked, so the failure escaped as an
+	/// unhandled exception instead of a reported status and an exit code.
+	/// </remarks>
+	/// <param name="body">The body of the response.</param>
+	/// <returns>A renderable that cannot fail on the body's content.</returns>
+	internal static IRenderable RenderBody(string body)
+	{
+		if (string.IsNullOrWhiteSpace(body))
+		{
+			return new Text("(empty body)");
+		}
+
+		try
+		{
+			using JsonDocument document = JsonDocument.Parse(body);
+			return new JsonText(body);
+		}
+		catch (JsonException)
+		{
+			return new Text(body);
+		}
 	}
 }
 
