@@ -75,9 +75,10 @@ public sealed class ModelTests
 		ResponseFormat format = new();
 
 		Assert.AreEqual("json_schema", format.Type);
-		Assert.IsNotNull(format.Schema);
+		Assert.AreEqual("response", format.JsonSchema.Name);
+		Assert.IsNotNull(format.JsonSchema.Schema);
 
-		JsonNode? properties = format.Schema["properties"];
+		JsonNode? properties = format.JsonSchema.Schema["properties"];
 		Assert.IsNotNull(properties);
 		Assert.IsNotNull(properties["Summary"]);
 		Assert.IsNotNull(properties["Files"]);
