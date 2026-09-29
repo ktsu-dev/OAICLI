@@ -84,6 +84,51 @@ public sealed class RequestFailureTests
 	}
 
 	/// <summary>
+	/// A gateway or proxy error arrives as HTML or with no body at all. Rendering it must not throw
+	/// before the status is checked, so the failure is still reported and the request still exits
+	/// with the failure code.
+	/// </summary>
+	/// <param name="body">A body that is not JSON.</param>
+	[TestMethod]
+	[DataRow("<html><body><h1>502 Bad Gateway</h1></body></html>")]
+	[DataRow("")]
+	[DataRow("   ")]
+	public void SendRequestReportsFailureWhenTheErrorBodyIsNotJson(string body)
+	{
+		int exitCode = CodeReviewCommand.SendRequest(
+			() => Request.EnsureSuccessful(HttpStatusCode.BadGateway, "Bad Gateway", body));
+
+		Assert.AreEqual(CodeReviewCommand.RequestFailedExitCode, exitCode);
+	}
+
+	/// <summary>
+	/// A body that is not JSON still reaches the exception, with the status it came back with.
+	/// </summary>
+	[TestMethod]
+	public void EnsureSuccessfulThrowsWithTheStatusForANonJsonBody()
+	{
+		const string body = "<html>502 Bad Gateway</html>";
+
+		HttpRequestException exception = Assert.ThrowsExactly<HttpRequestException>(
+			() => Request.EnsureSuccessful(HttpStatusCode.BadGateway, "Bad Gateway", body));
+
+		Assert.AreEqual(HttpStatusCode.BadGateway, exception.StatusCode);
+		Assert.Contains("502 Bad Gateway", exception.Message, StringComparison.Ordinal);
+		Assert.Contains(body, exception.Message, StringComparison.Ordinal);
+	}
+
+	/// <summary>
+	/// JSON bodies keep their JSON rendering, and anything else is shown as text.
+	/// </summary>
+	[TestMethod]
+	public void RenderBodyOnlyRendersJsonAsJson()
+	{
+		Assert.IsInstanceOfType<Spectre.Console.Json.JsonText>(Request.RenderBody(ErrorBody));
+		Assert.IsInstanceOfType<Spectre.Console.Text>(Request.RenderBody("<html></html>"));
+		Assert.IsInstanceOfType<Spectre.Console.Text>(Request.RenderBody(string.Empty));
+	}
+
+	/// <summary>
 	/// A request that came back successfully still exits zero.
 	/// </summary>
 	[TestMethod]
