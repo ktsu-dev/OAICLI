@@ -1,6 +1,8 @@
-## v1.1.3
+## v1.1.4 (patch)
 
-No significant changes detected since v1.1.3.
+Changes since v1.1.3:
+
+- fix: recognise a missing libsecret behind a TypeInitializationException [patch] ([@Claude](https://github.com/Claude))
 
 ## v1.1.3 (patch)
 
