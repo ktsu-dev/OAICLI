@@ -1,6 +1,6 @@
-## v1.1.4 (patch)
+## v1.1.5 (patch)
 
-Changes since v1.1.3:
+Changes since v1.1.4:
 
-- fix: recognise a missing libsecret behind a TypeInitializationException [patch] ([@Claude](https://github.com/Claude))
+- fix: leave build output and generated sources out of document and test requests [patch] ([@Claude](https://github.com/Claude))
 
