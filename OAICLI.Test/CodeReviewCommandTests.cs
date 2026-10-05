@@ -17,6 +17,11 @@ public sealed class CodeReviewCommandTests
 	private static readonly string[] ExpectedSourceFileNames = ["Deep.cs", "Top.cs"];
 
 	/// <summary>
+	/// The one file <see cref="FindCSCodeBelowSkipsBuildOutputAndGeneratedSources"/> expects back.
+	/// </summary>
+	private static readonly string[] OnlyHandWrittenSourceFileName = ["Top.cs"];
+
+	/// <summary>
 	/// A scratch directory unique to the running test, removed during cleanup.
 	/// </summary>
 	private string workingDirectory = string.Empty;
@@ -187,6 +192,36 @@ public sealed class CodeReviewCommandTests
 
 		string[] names = [.. results.Select(path => Path.GetFileName(path.AsSpan()).ToString()).Order(StringComparer.Ordinal)];
 		CollectionAssert.AreEqual(ExpectedSourceFileNames, names);
+	}
+
+	/// <summary>
+	/// Build output and generated sources are not the user's code, so the downward search leaves them
+	/// out rather than paying to send them to the model. A directory above the search root that
+	/// happens to be called <c>bin</c> does not count.
+	/// </summary>
+	[TestMethod]
+	public void FindCSCodeBelowSkipsBuildOutputAndGeneratedSources()
+	{
+		string root = Path.Combine(workingDirectory, "bin", "Project");
+		string objDir = Path.Combine(root, "obj", "Debug", "net10.0");
+		string binDir = Path.Combine(root, "bin", "Debug");
+		string gitDir = Path.Combine(root, ".git");
+		_ = Directory.CreateDirectory(objDir);
+		_ = Directory.CreateDirectory(binDir);
+		_ = Directory.CreateDirectory(gitDir);
+		File.WriteAllText(Path.Combine(root, "Top.cs"), string.Empty);
+		File.WriteAllText(Path.Combine(root, "Form.Designer.cs"), string.Empty);
+		File.WriteAllText(Path.Combine(root, "Generated.g.cs"), string.Empty);
+		File.WriteAllText(Path.Combine(root, "View.g.i.cs"), string.Empty);
+		File.WriteAllText(Path.Combine(objDir, "Project.AssemblyInfo.cs"), string.Empty);
+		File.WriteAllText(Path.Combine(objDir, "MicrosoftTestingPlatformEntryPoint.cs"), string.Empty);
+		File.WriteAllText(Path.Combine(binDir, "Stray.cs"), string.Empty);
+		File.WriteAllText(Path.Combine(gitDir, "Hook.cs"), string.Empty);
+
+		string[] results = CodeReviewCommand.FindCSCodeBelow(root);
+
+		string[] names = [.. results.Select(path => Path.GetFileName(path.AsSpan()).ToString())];
+		CollectionAssert.AreEqual(OnlyHandWrittenSourceFileName, names);
 	}
 
 	/// <summary>
