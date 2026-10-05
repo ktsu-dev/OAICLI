@@ -317,7 +317,42 @@ internal abstract class CodeReviewCommand : Command<CodeReviewCommand.Settings>
 
 		return string.IsNullOrWhiteSpace(currentDir)
 			? []
-			: Directory.GetFiles(currentDir, pattern, SearchOption.AllDirectories);
+			: [.. Directory.GetFiles(currentDir, pattern, SearchOption.AllDirectories)
+				.Where(filePath => !IsBuildOutputOrGenerated(Path.GetRelativePath(currentDir, filePath)))];
+	}
+
+	/// <summary>
+	/// Directories whose contents the build or source control writes, not the user.
+	/// </summary>
+	private static readonly string[] ExcludedDirectoryNames = ["bin", "obj", ".git"];
+
+	/// <summary>
+	/// File name endings the build and designers use for machine-generated sources.
+	/// </summary>
+	private static readonly string[] GeneratedFileSuffixes = [".g.cs", ".g.i.cs", ".designer.cs"];
+
+	/// <summary>
+	/// Whether a file found below the search root is build output or generated code, which would only
+	/// cost tokens and crowd out the user's own code if it were sent to the model.
+	/// </summary>
+	/// <param name="relativePath">The file's path relative to the search root, so that directories
+	/// above the root never count.</param>
+	/// <returns><see langword="true"/> when the file should be left out.</returns>
+	internal static bool IsBuildOutputOrGenerated(string relativePath)
+	{
+		string[] segments = relativePath.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries);
+		if (segments.Length == 0)
+		{
+			return false;
+		}
+
+		bool underExcludedDirectory = segments[..^1].Any(segment =>
+			ExcludedDirectoryNames.Contains(segment, StringComparer.OrdinalIgnoreCase));
+		string fileName = segments[^1];
+		bool generated = GeneratedFileSuffixes.Any(suffix =>
+			fileName.EndsWith(suffix, StringComparison.OrdinalIgnoreCase));
+
+		return underExcludedDirectory || generated;
 	}
 
 	internal static bool FindProjectAndSolutionFilePaths(string path, out string solutionFilePath, out string projectFilePath)
