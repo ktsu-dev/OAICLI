@@ -193,8 +193,12 @@ internal static class Auth
 
 	/// <summary>
 	/// Recognises the ways a machine without a secret store makes itself known: the factory refusing
-	/// the platform outright, or the native library failing to resolve on first use.
+	/// the platform outright, or the native library failing to resolve on first use. A library call
+	/// made from a static initializer surfaces wrapped in a <see cref="TypeInitializationException"/>,
+	/// which is how the Linux store reports a missing libsecret, so the wrapper is looked through.
 	/// </summary>
-	private static bool IsMissingSecretStore(Exception exception) =>
-		exception is PlatformNotSupportedException or DllNotFoundException or EntryPointNotFoundException;
+	internal static bool IsMissingSecretStore(Exception exception) =>
+		exception is TypeInitializationException { InnerException: { } inner }
+			? IsMissingSecretStore(inner)
+			: exception is PlatformNotSupportedException or DllNotFoundException or EntryPointNotFoundException;
 }
