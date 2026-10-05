@@ -283,6 +283,80 @@ public sealed class CodeReviewCommandTests
 	}
 
 	/// <summary>
+	/// Many repositories keep their projects under <c>src/</c>, so there is no directory named after
+	/// the solution beside it. Discovery finds the project named after the solution further down
+	/// instead of failing on the missing directory.
+	/// </summary>
+	[TestMethod]
+	public void FindProjectAndSolutionFilePathsFindsAProjectUnderSrc()
+	{
+		string solutionPath = Path.Combine(workingDirectory, "Sample.sln");
+		File.WriteAllText(solutionPath, string.Empty);
+		string projectDirectory = Path.Combine(workingDirectory, "src", "Sample");
+		_ = Directory.CreateDirectory(projectDirectory);
+		string projectPath = Path.Combine(projectDirectory, "Sample.csproj");
+		File.WriteAllText(projectPath, string.Empty);
+
+		bool found = CodeReviewCommand.FindProjectAndSolutionFilePaths(workingDirectory, out string solutionFilePath, out string projectFilePath);
+
+		Assert.IsTrue(found);
+		Assert.AreEqual(Path.GetFullPath(solutionPath), solutionFilePath);
+		Assert.AreEqual(Path.GetFullPath(projectPath), projectFilePath);
+	}
+
+	/// <summary>
+	/// A project whose name differs from the solution's cannot be identified, so discovery reports
+	/// failure and lets the commands print their own message rather than throwing on a directory
+	/// that does not exist.
+	/// </summary>
+	[TestMethod]
+	public void FindProjectAndSolutionFilePathsReportsFailureWhenNoProjectIsNamedAfterTheSolution()
+	{
+		string solutionPath = Path.Combine(workingDirectory, "Sample.sln");
+		File.WriteAllText(solutionPath, string.Empty);
+		string projectDirectory = Path.Combine(workingDirectory, "src", "Other");
+		_ = Directory.CreateDirectory(projectDirectory);
+		File.WriteAllText(Path.Combine(projectDirectory, "Other.csproj"), string.Empty);
+
+		bool found = CodeReviewCommand.FindProjectAndSolutionFilePaths(workingDirectory, out string solutionFilePath, out string projectFilePath);
+
+		Assert.IsFalse(found);
+		Assert.AreEqual(Path.GetFullPath(solutionPath), solutionFilePath);
+		Assert.AreEqual(string.Empty, projectFilePath);
+	}
+
+	/// <summary>
+	/// Two projects named after the solution would make any pick a guess, so neither is chosen.
+	/// </summary>
+	[TestMethod]
+	public void FindProjectNamedAfterSolutionBelowRefusesToGuessBetweenTwoMatches()
+	{
+		_ = Directory.CreateDirectory(Path.Combine(workingDirectory, "src", "Sample"));
+		_ = Directory.CreateDirectory(Path.Combine(workingDirectory, "legacy", "Sample"));
+		File.WriteAllText(Path.Combine(workingDirectory, "src", "Sample", "Sample.csproj"), string.Empty);
+		File.WriteAllText(Path.Combine(workingDirectory, "legacy", "Sample", "Sample.csproj"), string.Empty);
+
+		string result = CodeReviewCommand.FindProjectNamedAfterSolutionBelow(workingDirectory, "Sample");
+
+		Assert.AreEqual(string.Empty, result);
+	}
+
+	/// <summary>
+	/// The upward walk starts from the nearest directory that exists, rather than throwing when the
+	/// starting directory is a guess that turned out not to exist.
+	/// </summary>
+	[TestMethod]
+	public void FindFileAboveStartsFromTheNearestExistingDirectory()
+	{
+		string projectPath = Path.Combine(workingDirectory, "Sample.csproj");
+		File.WriteAllText(projectPath, string.Empty);
+
+		string result = CodeReviewCommand.FindCSProjAbove(Path.Combine(workingDirectory, "Missing", "Deeper"));
+
+		Assert.AreEqual(Path.GetFullPath(projectPath), result);
+	}
+
+	/// <summary>
 	/// The settings the commands bind to start out empty, so an invocation with no arguments does
 	/// not look like one that named a file or asked to skip the confirmation.
 	/// </summary>
