@@ -40,19 +40,24 @@ public sealed class AuthTests
 
 	/// <summary>
 	/// A store standing in for a machine whose native secret library will not load — the Linux box
-	/// with no Secret Service provider, which is the common case over SSH and in containers.
+	/// with no Secret Service provider, which is the common case over SSH and in containers. By
+	/// default it throws the shape the real Linux store throws: the library call sits in a static
+	/// initializer, so the <see cref="DllNotFoundException"/> arrives wrapped.
 	/// </summary>
-	private sealed class UnavailableCredentialStore : ICredentialStore
+	private sealed class UnavailableCredentialStore(Func<Exception>? failure = null) : ICredentialStore
 	{
+		private readonly Func<Exception> failure = failure ?? MissingLibsecret;
+
 		public string Name => "Unavailable";
 
-		public bool TryLoad(PersonaGUID persona, out Credential? credential) =>
-			throw new DllNotFoundException("libsecret-1.so.0");
+		public bool TryLoad(PersonaGUID persona, out Credential? credential) => throw failure();
 
-		public void Save(PersonaGUID persona, Credential credential) =>
-			throw new DllNotFoundException("libsecret-1.so.0");
+		public void Save(PersonaGUID persona, Credential credential) => throw failure();
 
-		public bool Remove(PersonaGUID persona) => throw new DllNotFoundException("libsecret-1.so.0");
+		public bool Remove(PersonaGUID persona) => throw failure();
+
+		private static TypeInitializationException MissingLibsecret() =>
+			new("Schema", new DllNotFoundException("libsecret-1.so.0"));
 	}
 
 	/// <summary>
@@ -218,7 +223,37 @@ public sealed class AuthTests
 			Assert.ThrowsExactly<CredentialStoreException>(() => Auth.TryGetApiKey(cache, out _));
 
 		Assert.Contains("secret store", exception.Message, StringComparison.Ordinal);
+		Assert.IsInstanceOfType<TypeInitializationException>(exception.InnerException);
+	}
+
+	/// <summary>
+	/// The unwrapped shapes still count, so a store that throws the native failure directly is
+	/// recognised as well as one that throws it from a static initializer.
+	/// </summary>
+	[TestMethod]
+	public void ReadingWithoutASecretStoreFailsWithAnExplanationForAnUnwrappedFailure()
+	{
+		using CredentialCache cache = new(new UnavailableCredentialStore(() => new DllNotFoundException("libsecret-1.so.0")));
+
+		CredentialStoreException exception =
+			Assert.ThrowsExactly<CredentialStoreException>(() => Auth.TryGetApiKey(cache, out _));
+
 		Assert.IsInstanceOfType<DllNotFoundException>(exception.InnerException);
+	}
+
+	/// <summary>
+	/// Only a missing native library is looked through. A static initializer failing for some other
+	/// reason is a real fault, not a missing secret store, and must not be reported as one.
+	/// </summary>
+	[TestMethod]
+	public void IsMissingSecretStoreLooksThroughTypeInitializationOnlyForAMissingLibrary()
+	{
+		Assert.IsTrue(Auth.IsMissingSecretStore(new TypeInitializationException("Schema", new DllNotFoundException())));
+		Assert.IsTrue(Auth.IsMissingSecretStore(new TypeInitializationException("Outer", new TypeInitializationException("Schema", new EntryPointNotFoundException()))));
+		Assert.IsTrue(Auth.IsMissingSecretStore(new PlatformNotSupportedException()));
+		Assert.IsFalse(Auth.IsMissingSecretStore(new TypeInitializationException("Schema", new InvalidOperationException())));
+		Assert.IsFalse(Auth.IsMissingSecretStore(new TypeInitializationException("Schema", null)));
+		Assert.IsFalse(Auth.IsMissingSecretStore(new InvalidOperationException()));
 	}
 
 	/// <summary>
