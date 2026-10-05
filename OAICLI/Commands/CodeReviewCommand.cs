@@ -296,6 +296,14 @@ internal abstract class CodeReviewCommand : Command<CodeReviewCommand.Settings>
 
 		while (!string.IsNullOrWhiteSpace(currentDir))
 		{
+			if (!Directory.Exists(currentDir))
+			{
+				// A guessed starting directory may not exist; its nearest existing ancestor is where
+				// the walk really begins.
+				currentDir = Path.GetDirectoryName(currentDir) ?? string.Empty;
+				continue;
+			}
+
 			string[] directoryFiles = Directory.GetFiles(currentDir, pattern);
 			if (directoryFiles.Length > 0)
 			{
@@ -332,10 +340,26 @@ internal abstract class CodeReviewCommand : Command<CodeReviewCommand.Settings>
 			string solutionDir = Path.GetDirectoryName(solutionFilePath) ?? string.Empty;
 			string solutionName = Path.GetFileNameWithoutExtension(solutionFilePath);
 			string projectDir = Path.Join(solutionDir, solutionName);
-			projectFilePath = FindCSProjAbove(projectDir);
+			projectFilePath = Directory.Exists(projectDir)
+				? FindCSProjAbove(projectDir)
+				: FindProjectNamedAfterSolutionBelow(solutionDir, solutionName);
 		}
 
 		return !string.IsNullOrEmpty(solutionFilePath) && !string.IsNullOrEmpty(projectFilePath);
+	}
+
+	/// <summary>
+	/// Finds the project named after the solution anywhere below the solution directory, which covers
+	/// layouts such as <c>src/&lt;Name&gt;/&lt;Name&gt;.csproj</c>.
+	/// </summary>
+	/// <param name="solutionDir">The directory holding the solution file.</param>
+	/// <param name="solutionName">The solution's file name without its extension.</param>
+	/// <returns>The project's full path, or an empty string when there is no such project or more
+	/// than one, since picking between them would be a guess.</returns>
+	internal static string FindProjectNamedAfterSolutionBelow(string solutionDir, string solutionName)
+	{
+		string[] matches = FindFilesBelow(solutionDir, $"{solutionName}.csproj");
+		return matches.Length == 1 ? Path.GetFullPath(matches[0]) : string.Empty;
 	}
 }
 
