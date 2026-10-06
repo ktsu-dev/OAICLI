@@ -331,7 +331,11 @@ public sealed class AuthTests
 	/// Runs <paramref name="body"/> against a console that replays <paramref name="entries"/> as if
 	/// they had been typed.
 	/// </summary>
-	private static void WithTypedInput(Action body, params string[] entries)
+	private static void WithTypedInput(Action body, params string[] entries) => _ = OutputOfTypedInput(body, entries);
+
+	/// <inheritdoc cref="WithTypedInput"/>
+	/// <returns>Everything written to the console while <paramref name="body"/> ran.</returns>
+	private static string OutputOfTypedInput(Action body, params string[] entries)
 	{
 		IAnsiConsole original = AnsiConsole.Console;
 		try
@@ -345,11 +349,29 @@ public sealed class AuthTests
 
 			AnsiConsole.Console = console;
 			body();
+			return console.Output;
 		}
 		finally
 		{
 			AnsiConsole.Console = original;
 		}
+	}
+
+	/// <summary>
+	/// The key is a billable bearer credential, so typing it must not echo it to the terminal where
+	/// it would sit in scrollback, screen shares and recordings.
+	/// </summary>
+	[TestMethod]
+	public void EnsureHasApiKeyDoesNotEchoTheKeyAsItIsTyped()
+	{
+		using CredentialCache cache = NewCache();
+		FakeLegacyApiKeyStore legacy = new(string.Empty);
+
+		string output = OutputOfTypedInput(() => Auth.EnsureHasApiKey(cache, legacy), "sk-secret-XYZ");
+
+		Assert.DoesNotContain("sk-secret-XYZ", output);
+		Assert.IsTrue(Auth.TryGetApiKey(cache, out string stored));
+		Assert.AreEqual("sk-secret-XYZ", stored);
 	}
 
 	/// <summary>

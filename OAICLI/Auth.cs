@@ -73,7 +73,7 @@ internal static class Auth
 
 		while (!TryGetApiKey(cache, out _))
 		{
-			TextPrompt<string> textPrompt = new("Supply your OpenAI api key:");
+			TextPrompt<string> textPrompt = new TextPrompt<string>("Supply your OpenAI api key:").Secret();
 			string entered = AnsiConsole.Prompt(textPrompt).Trim();
 			if (entered.Length > 0)
 			{
