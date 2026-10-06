@@ -1,6 +1,6 @@
-## v1.1.5 (patch)
+## v1.1.6 (patch)
 
-Changes since v1.1.4:
+Changes since v1.1.5:
 
-- fix: leave build output and generated sources out of document and test requests [patch] ([@Claude](https://github.com/Claude))
+- fix: find a project under src/ instead of crashing on a missing directory [patch] ([@Claude](https://github.com/Claude))
 
