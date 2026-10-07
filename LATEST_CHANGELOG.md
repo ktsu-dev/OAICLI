@@ -1,6 +1,4 @@
-## v1.1.7 (patch)
+## v1.1.7
 
-Changes since v1.1.6:
-
-- fix: mask the API key as it is typed at the first-run prompt [patch] ([@Claude](https://github.com/Claude))
+No significant changes detected since v1.1.7.
 
