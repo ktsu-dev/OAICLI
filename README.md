@@ -55,18 +55,12 @@ OAICLI
 
 # Generate XML doc comments for the current solution
 OAICLI document
-
-# Provide additional context files
-OAICLI test --context path/to/helper.cs path/to/extension.cs
-
-# Skip the diff preview prompt
-OAICLI test --force
 ```
 
-| Option | Long form | Effect |
-|---|---|---|
-| `-c` | `--context` | Extra context file paths to include with the request. |
-| `-f` | `--force` | Skip the diff preview and accept the AI's edits. |
+The commands take no arguments or options. Each one sends the C# files it finds from the current
+directory: `test` everything below the solution, `document` everything below the project. Extra
+context files (`--context`), a file path, and accepting edits without a preview (`--force`) are not
+supported yet; passing any of them is an error rather than being silently ignored.
 
 ## License
 

@@ -14,7 +14,6 @@
     <PackageReference Include="Spectre.Console" />
     <PackageReference Include="Spectre.Console.Ansi" />
     <PackageReference Include="Spectre.Console.Cli" />
-    <PackageReference Include="Spectre.Console.ImageSharp" />
     <PackageReference Include="Spectre.Console.Json" />
     <PackageReference Include="Spectre.Console.Testing" />
   </ItemGroup>
