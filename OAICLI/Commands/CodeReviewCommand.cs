@@ -3,6 +3,7 @@
 namespace ktsu.OAICLI;
 
 using System.Diagnostics.CodeAnalysis;
+using System.Text.RegularExpressions;
 using ktsu.Extensions;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -31,68 +32,89 @@ internal abstract class CodeReviewCommand : Command<CodeReviewCommand.Settings>
 	/// </summary>
 	internal const int RequestFailedExitCode = 1;
 
-	protected override int Execute([NotNull] CommandContext context, [NotNull] Settings settings, CancellationToken cancellationToken)
+	protected override int Execute([NotNull] CommandContext context, [NotNull] Settings settings, CancellationToken cancellationToken) =>
+		Run(TaskRequest.Send, () => Setup(settings));
+
+	//string responseJson = OAICLI.MakeRequest(TaskRequest);
+	//var jsonNode = JsonNode.Parse(responseJson);
+	//var responseObj = jsonNode as JsonObject;
+	//var choicesArray = responseObj?["choices"] as JsonArray;
+	//var choiceObj = choicesArray?[0] as JsonObject;
+	//var messageObj = choiceObj?["message"] as JsonObject;
+	//string contentModified = messageObj?["content"]?.ToString() ?? "";
+
+	//if (!string.IsNullOrWhiteSpace(contentModified))
+	//{
+	//	string fileDir = Path.GetDirectoryName(settings.FilePath) ?? string.Empty;
+	//	if (string.IsNullOrWhiteSpace(fileDir))
+	//	{
+	//		throw new InvalidOperationException($"Invalid file path: {settings.FilePath}");
+	//	}
+
+	//	if (!Directory.Exists(fileDir))
+	//	{
+	//		throw new DirectoryNotFoundException($"Directory not found: {fileDir}");
+	//	}
+
+	//	string tmpFilePath = Path.Combine(fileDir, Path.GetFileNameWithoutExtension(settings.FilePath) + ".tmp" + Path.GetExtension(settings.FilePath));
+	//	File.WriteAllText(tmpFilePath, contentModified);
+
+	//	if (!string.IsNullOrWhiteSpace(aiResponse))
+	//	{
+	//		Console.WriteLine(aiResponse);
+	//	}
+
+	//	if (!settings.Force)
+	//	{
+	//		_ = Process.Start(new ProcessStartInfo()
+	//		{
+	//			FileName = "code",
+	//			Arguments = $"--diff {settings.FilePath} {tmpFilePath}",
+	//			UseShellExecute = true,
+	//		});
+	//	}
+
+	//	bool takeChange = settings.Force;
+	//	if (!takeChange)
+	//	{
+	//		var textPrompt = new ConfirmationPrompt("Take the change?");
+	//		takeChange = AnsiConsole.Prompt(textPrompt);
+	//		Console.WriteLine(takeChange ? "Confirmed" : "Declined");
+	//	}
+
+	//	if (takeChange)
+	//	{
+	//		File.Delete(settings.FilePath);
+	//		File.Move(tmpFilePath, settings.FilePath);
+	//	}
+	//	else
+	//	{
+	//		File.Delete(tmpFilePath);
+	//	}
+	//}
+
+	/// <summary>
+	/// Sends the request, and changes the user's files only once it has succeeded.
+	/// </summary>
+	/// <remarks>
+	/// A run that never got an answer -- no key, a rejection, a timeout -- has nothing to apply, so it
+	/// must leave the solution as it found it. Scaffolding ahead of the request left a project behind
+	/// on every failed run, and the user's build broke until they removed it by hand.
+	/// </remarks>
+	/// <param name="sendRequest">Sends the request and returns the body of the response.</param>
+	/// <param name="applyResult">Writes the command's changes, called only after a successful request.</param>
+	/// <returns>The exit code from <see cref="SendRequest"/>.</returns>
+	internal static int Run([NotNull] Func<string> sendRequest, [NotNull] Action applyResult)
 	{
-		Setup(settings);
+		Ensure.NotNull(applyResult);
 
-		//string responseJson = OAICLI.MakeRequest(TaskRequest);
-		return SendRequest(TaskRequest.Send);
-		//var jsonNode = JsonNode.Parse(responseJson);
-		//var responseObj = jsonNode as JsonObject;
-		//var choicesArray = responseObj?["choices"] as JsonArray;
-		//var choiceObj = choicesArray?[0] as JsonObject;
-		//var messageObj = choiceObj?["message"] as JsonObject;
-		//string contentModified = messageObj?["content"]?.ToString() ?? "";
+		int exitCode = SendRequest(sendRequest);
+		if (exitCode == 0)
+		{
+			applyResult();
+		}
 
-		//if (!string.IsNullOrWhiteSpace(contentModified))
-		//{
-		//	string fileDir = Path.GetDirectoryName(settings.FilePath) ?? string.Empty;
-		//	if (string.IsNullOrWhiteSpace(fileDir))
-		//	{
-		//		throw new InvalidOperationException($"Invalid file path: {settings.FilePath}");
-		//	}
-
-		//	if (!Directory.Exists(fileDir))
-		//	{
-		//		throw new DirectoryNotFoundException($"Directory not found: {fileDir}");
-		//	}
-
-		//	string tmpFilePath = Path.Combine(fileDir, Path.GetFileNameWithoutExtension(settings.FilePath) + ".tmp" + Path.GetExtension(settings.FilePath));
-		//	File.WriteAllText(tmpFilePath, contentModified);
-
-		//	if (!string.IsNullOrWhiteSpace(aiResponse))
-		//	{
-		//		Console.WriteLine(aiResponse);
-		//	}
-
-		//	if (!settings.Force)
-		//	{
-		//		_ = Process.Start(new ProcessStartInfo()
-		//		{
-		//			FileName = "code",
-		//			Arguments = $"--diff {settings.FilePath} {tmpFilePath}",
-		//			UseShellExecute = true,
-		//		});
-		//	}
-
-		//	bool takeChange = settings.Force;
-		//	if (!takeChange)
-		//	{
-		//		var textPrompt = new ConfirmationPrompt("Take the change?");
-		//		takeChange = AnsiConsole.Prompt(textPrompt);
-		//		Console.WriteLine(takeChange ? "Confirmed" : "Declined");
-		//	}
-
-		//	if (takeChange)
-		//	{
-		//		File.Delete(settings.FilePath);
-		//		File.Move(tmpFilePath, settings.FilePath);
-		//	}
-		//	else
-		//	{
-		//		File.Delete(tmpFilePath);
-		//	}
-		//}
+		return exitCode;
 	}
 
 	/// <summary>
@@ -431,7 +453,7 @@ internal class DocumentCommand : CodeReviewCommand
 	}
 }
 
-internal class TestCommand : CodeReviewCommand
+internal partial class TestCommand : CodeReviewCommand
 {
 	internal override Request TaskRequest
 	{
@@ -588,11 +610,26 @@ namespace MyNamespace.Tests
 		}
 	}
 
+	/// <summary>
+	/// The MSTest.Sdk version a scaffolded test project asks for when no <c>global.json</c> above the
+	/// solution pins one.
+	/// </summary>
+	internal const string MSTestSdkVersion = "4.3.3";
+
 	internal override void Setup(Settings settings)
 	{
 		base.Setup(settings);
+		ScaffoldTestProject(Directory.GetCurrentDirectory());
+	}
 
-		if (!FindProjectAndSolutionFilePaths(Directory.GetCurrentDirectory(), out string solutionFilePath, out string projectFilePath))
+	/// <summary>
+	/// Adds a test project for the project found from <paramref name="path"/> to its solution, unless
+	/// the solution already has one.
+	/// </summary>
+	/// <param name="path">The directory or file to start the project and solution search from.</param>
+	internal static void ScaffoldTestProject(string path)
+	{
+		if (!FindProjectAndSolutionFilePaths(path, out string solutionFilePath, out string projectFilePath))
 		{
 			throw new InvalidOperationException("Could not find project and solution files.");
 		}
@@ -609,7 +646,7 @@ namespace MyNamespace.Tests
 		Directory.CreateDirectory(testProjectDir);
 		if (!File.Exists(testProjectFilePath))
 		{
-			File.WriteAllText(testProjectFilePath, "<Project Sdk=\"Microsoft.NET.Sdk\">\r\n  <PropertyGroup>\r\n    <IsTestProject>true</IsTestProject>\r\n  </PropertyGroup>\r\n</Project>\r\n");
+			File.WriteAllText(testProjectFilePath, TestProjectContent(projectFilePath, testProjectDir, IsMSTestSdkPinned(solutionDir)));
 		}
 
 		if (!File.Exists(testFilePath))
@@ -630,4 +667,64 @@ namespace MyNamespace.Tests
 			File.WriteAllText(solutionFilePath, solutionContent);
 		}
 	}
+
+	/// <summary>
+	/// Builds a test project file that builds as written.
+	/// </summary>
+	/// <remarks>
+	/// MSTest.Sdk brings the test framework and the adapter; the target framework and the reference to
+	/// the project under test are the two things it cannot know. The MSTest namespace is imported by
+	/// the project rather than left to MSTest.Sdk, which only does so under <c>ImplicitUsings</c>, and
+	/// the generation prompt tells the model it is already there. A bare <c>Microsoft.NET.Sdk</c>
+	/// project with none of this failed the solution's build on its first line.
+	/// </remarks>
+	/// <param name="projectFilePath">The project under test.</param>
+	/// <param name="testProjectDir">The directory the test project is written to.</param>
+	/// <param name="msTestSdkPinned">
+	/// Whether a <c>global.json</c> already pins MSTest.Sdk, in which case the project names it without
+	/// a version so the pin decides.
+	/// </param>
+	/// <returns>The test project file's content, with Windows newlines.</returns>
+	internal static string TestProjectContent(string projectFilePath, string testProjectDir, bool msTestSdkPinned)
+	{
+		string sdk = msTestSdkPinned ? "MSTest.Sdk" : $"MSTest.Sdk/{MSTestSdkVersion}";
+		string targetFramework = TestTargetFramework(File.ReadAllText(projectFilePath));
+		string reference = Path.GetRelativePath(testProjectDir, projectFilePath).Replace('/', '\\');
+
+		return $"<Project Sdk=\"{sdk}\">\r\n  <PropertyGroup>\r\n    <TargetFramework>{targetFramework}</TargetFramework>\r\n  </PropertyGroup>\r\n\r\n  <ItemGroup>\r\n    <ProjectReference Include=\"{reference}\" />\r\n    <Using Include=\"Microsoft.VisualStudio.TestTools.UnitTesting\" />\r\n  </ItemGroup>\r\n</Project>\r\n";
+	}
+
+	/// <summary>
+	/// Chooses the framework a test project for the given project should target.
+	/// </summary>
+	/// <remarks>
+	/// The first framework the project declares, so the reference resolves. A <c>netstandard</c>
+	/// library cannot host a test run, and a project that inherits its frameworks from an SDK declares
+	/// none; both get the framework this tool is running on, which the machine is known to have.
+	/// </remarks>
+	/// <param name="projectContent">The project file's content.</param>
+	/// <returns>A target framework moniker.</returns>
+	internal static string TestTargetFramework(string projectContent)
+	{
+		string? declared = TargetFrameworkPattern().Matches(projectContent)
+			.SelectMany(match => match.Groups["frameworks"].Value.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+			.FirstOrDefault(framework => !framework.StartsWith("netstandard", StringComparison.OrdinalIgnoreCase));
+
+		return declared ?? $"net{Environment.Version.Major}.0";
+	}
+
+	/// <summary>
+	/// Whether a <c>global.json</c> at or above the solution directory pins MSTest.Sdk.
+	/// </summary>
+	/// <param name="solutionDir">The directory holding the solution file.</param>
+	/// <returns><see langword="true"/> when an <c>msbuild-sdks</c> entry names MSTest.Sdk.</returns>
+	internal static bool IsMSTestSdkPinned(string solutionDir)
+	{
+		string globalJsonPath = FindFileAbove(solutionDir, "global.json");
+		return !string.IsNullOrEmpty(globalJsonPath)
+			&& File.ReadAllText(globalJsonPath).Contains("\"MSTest.Sdk\"", StringComparison.Ordinal);
+	}
+
+	[GeneratedRegex(@"<TargetFrameworks?>(?<frameworks>[^<]*)</TargetFrameworks?>")]
+	private static partial Regex TargetFrameworkPattern();
 }
