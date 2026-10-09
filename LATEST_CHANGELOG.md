@@ -1,4 +1,7 @@
-## v1.1.7
+## v1.1.8 (patch)
 
-No significant changes detected since v1.1.7.
+Changes since v1.1.7:
+
+- Reject --context, --force and a file path instead of silently ignoring them [patch] ([@Claude](https://github.com/Claude))
+- Drop the unused Spectre.Console.ImageSharp reference [patch] ([@Claude](https://github.com/Claude))
 
