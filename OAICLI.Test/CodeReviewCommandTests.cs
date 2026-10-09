@@ -357,20 +357,6 @@ public sealed class CodeReviewCommandTests
 	}
 
 	/// <summary>
-	/// The settings the commands bind to start out empty, so an invocation with no arguments does
-	/// not look like one that named a file or asked to skip the confirmation.
-	/// </summary>
-	[TestMethod]
-	public void SettingsStartEmpty()
-	{
-		CodeReviewCommand.Settings settings = new();
-
-		Assert.AreEqual(string.Empty, settings.FilePath);
-		Assert.AreEqual(0, settings.ContextFilePaths.Length);
-		Assert.IsFalse(settings.Force);
-	}
-
-	/// <summary>
 	/// A solution with two projects: the ordinary case, and the one the old insertion could not
 	/// survive. CRLF throughout, as a solution file written by Visual Studio is.
 	/// </summary>

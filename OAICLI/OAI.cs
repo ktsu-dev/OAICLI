@@ -16,20 +16,30 @@ internal static partial class OAI
 	private static int Main(string[] args)
 	{
 		CommandApp app = new();
-		app.Configure(config =>
-		{
-			_ = config.SetApplicationName(nameof(OAI));
-			_ = config.ValidateExamples();
-
-			_ = config.AddCommand<DocumentCommand>("document")
-				.WithExample("document", "path/to/Program.cs");
-
-			_ = config.AddCommand<TestCommand>("test")
-				.WithExample("test");
-		});
+		app.Configure(Configure);
 
 		app.SetDefaultCommand<TestCommand>();
 
 		return app.Run(args);
+	}
+
+	/// <summary>
+	/// Registers the commands and their examples.
+	/// </summary>
+	/// <param name="config">The configurator to register them with.</param>
+	internal static void Configure(IConfigurator config)
+	{
+		_ = config.SetApplicationName(nameof(OAI));
+		_ = config.ValidateExamples();
+
+		// Without strict parsing an unknown option is set aside as a remaining argument and the
+		// command runs anyway, which is how --context and --force went unnoticed.
+		_ = config.UseStrictParsing();
+
+		_ = config.AddCommand<DocumentCommand>("document")
+			.WithExample("document");
+
+		_ = config.AddCommand<TestCommand>("test")
+			.WithExample("test");
 	}
 }

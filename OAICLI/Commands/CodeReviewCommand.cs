@@ -13,17 +13,17 @@ internal abstract class CodeReviewCommand : Command<CodeReviewCommand.Settings>
 
 	internal virtual void Setup(Settings settings) { }
 
-	public sealed class Settings : CommandSettings
-	{
-		[CommandArgument(0, $"[{nameof(FilePath)}]")]
-		public string FilePath { get; internal set; } = string.Empty;
-
-		[CommandOption("-c|--context <FILE_PATHS>")]
-		public string[] ContextFilePaths { get; internal set; } = [];
-
-		[CommandOption("-f|--force")]
-		public bool Force { get; init; }
-	}
+	/// <summary>
+	/// The command's settings.
+	/// </summary>
+	/// <remarks>
+	/// Deliberately empty. A file path argument, <c>--context</c> and <c>--force</c> were declared
+	/// here, but nothing read them: every command sent the same files whatever was passed and exited
+	/// zero, so a user had no way to tell their input was dropped. Without them, the parser rejects
+	/// those inputs with an error and a non-zero exit code. They come back when something consumes
+	/// them, which for <c>--force</c> means reviving the commented-out apply path below.
+	/// </remarks>
+	public sealed class Settings : CommandSettings;
 
 	/// <summary>
 	/// The exit code reported when the API request did not succeed, so a script gating on this tool
