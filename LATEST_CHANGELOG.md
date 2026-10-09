@@ -1,7 +1,7 @@
-## v1.1.8 (patch)
+## v1.1.9 (patch)
 
-Changes since v1.1.7:
+Changes since v1.1.8:
 
-- Reject --context, --force and a file path instead of silently ignoring them [patch] ([@Claude](https://github.com/Claude))
 - Drop the unused Spectre.Console.ImageSharp reference [patch] ([@Claude](https://github.com/Claude))
+- Scaffold the test project only after a successful request, and make it build [patch] ([@Claude](https://github.com/Claude))
 
