@@ -4,6 +4,7 @@ namespace ktsu.OAICLI;
 
 using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using ktsu.Extensions;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -300,8 +301,36 @@ internal abstract class CodeReviewCommand : Command<CodeReviewCommand.Settings>
 		return string.Join("\n", lines).NormalizeLineEndings(lineEndings);
 	}
 
+	/// <summary>
+	/// The solution formats discovery recognises, in the order it prefers them when a directory holds
+	/// both.
+	/// </summary>
+	private static readonly string[] SolutionExtensions = [".sln", ".slnx"];
+
+	/// <summary>
+	/// Finds the nearest solution at or above <paramref name="path"/>, in either the classic
+	/// <c>.sln</c> format or the XML <c>.slnx</c> one that <c>dotnet new sln</c> writes as of the .NET
+	/// 10 SDK.
+	/// </summary>
+	/// <remarks>
+	/// Each extension is checked exactly, because on Windows the pattern <c>*.sln</c> also matches
+	/// <c>.slnx</c>, which would make the pick depend on the order the files are listed in.
+	/// </remarks>
+	/// <param name="path">The directory or file to start the search from.</param>
+	/// <returns>The solution's full path, or an empty string when there is none.</returns>
 	internal static string FindSolutionAbove(string path) =>
-	FindFileAbove(path, "*.sln");
+		FindFileAbove(path, directory => SolutionExtensions
+			.Select(extension => Directory.GetFiles(directory, $"*{extension}")
+				.FirstOrDefault(file => Path.GetExtension(file).Equals(extension, StringComparison.OrdinalIgnoreCase)))
+			.FirstOrDefault(file => file is not null));
+
+	/// <summary>
+	/// Whether a solution is in the XML <c>.slnx</c> format rather than the classic text one.
+	/// </summary>
+	/// <param name="solutionFilePath">The solution's path.</param>
+	/// <returns><see langword="true"/> for an <c>.slnx</c> file.</returns>
+	internal static bool IsSlnx(string solutionFilePath) =>
+		Path.GetExtension(solutionFilePath).Equals(".slnx", StringComparison.OrdinalIgnoreCase);
 
 	internal static string FindCSProjAbove(string path) =>
 			FindFileAbove(path, "*.csproj");
@@ -309,7 +338,18 @@ internal abstract class CodeReviewCommand : Command<CodeReviewCommand.Settings>
 	internal static string[] FindCSCodeBelow(string path) =>
 			FindFilesBelow(path, "*.cs");
 
-	internal static string FindFileAbove(string path, string pattern)
+	internal static string FindFileAbove(string path, string pattern) =>
+		FindFileAbove(path, directory => Directory.GetFiles(directory, pattern).FirstOrDefault());
+
+	/// <summary>
+	/// Walks up from <paramref name="path"/> and returns the first file <paramref name="findIn"/>
+	/// picks out of a directory.
+	/// </summary>
+	/// <param name="path">The directory or file to start the search from.</param>
+	/// <param name="findIn">Picks a file from the given directory, or returns <see langword="null"/>
+	/// to move on to its parent.</param>
+	/// <returns>The file's full path, or an empty string when no directory had one.</returns>
+	private static string FindFileAbove(string path, Func<string, string?> findIn)
 	{
 		bool isFile = File.Exists(path);
 		string currentDir = isFile
@@ -326,10 +366,10 @@ internal abstract class CodeReviewCommand : Command<CodeReviewCommand.Settings>
 				continue;
 			}
 
-			string[] directoryFiles = Directory.GetFiles(currentDir, pattern);
-			if (directoryFiles.Length > 0)
+			string? found = findIn(currentDir);
+			if (found is not null)
 			{
-				return Path.GetFullPath(directoryFiles[0]);
+				return Path.GetFullPath(found);
 			}
 
 			currentDir = Path.GetDirectoryName(currentDir) ?? string.Empty;
@@ -657,7 +697,15 @@ namespace MyNamespace.Tests
 		// add the test project to the solution, matching its exact path so that a sibling whose name
 		// merely starts with the same text (Sample.Tests, Sample.TestHelpers) does not count as it
 		string solutionContent = File.ReadAllText(solutionFilePath);
-		if (!solutionContent.Contains($"\"{testProjectName}\\{testProjectName}.csproj\"", StringComparison.OrdinalIgnoreCase))
+		if (IsSlnx(solutionFilePath))
+		{
+			string updatedContent = AddProjectToSlnx(solutionContent, $"{testProjectName}/{testProjectName}.csproj");
+			if (updatedContent != solutionContent)
+			{
+				File.WriteAllText(solutionFilePath, updatedContent);
+			}
+		}
+		else if (!solutionContent.Contains($"\"{testProjectName}\\{testProjectName}.csproj\"", StringComparison.OrdinalIgnoreCase))
 		{
 			string projectGuid = Guid.NewGuid().ToString("B").ToUpperInvariant();
 			string csprojGuid = "{9A19103F-16F7-4668-BE54-9A1E7A4F7556}";
@@ -667,6 +715,52 @@ namespace MyNamespace.Tests
 			File.WriteAllText(solutionFilePath, solutionContent);
 		}
 	}
+
+	/// <summary>
+	/// Adds a <c>Project</c> element to an <c>.slnx</c> solution, unless the solution already lists
+	/// that project.
+	/// </summary>
+	/// <remarks>
+	/// The element is written into the text rather than through a re-serialized
+	/// <see cref="XDocument"/>, so the rest of the file keeps its formatting. It goes last, indented one
+	/// step inside the closing tag and using the file's own line endings. A project already listed
+	/// counts wherever it sits (a solution folder included), however its separators are written, and
+	/// in any case, because Windows paths are.
+	/// </remarks>
+	/// <param name="solutionContent">The solution file's current content.</param>
+	/// <param name="projectPath">The project's path relative to the solution, with forward slashes.</param>
+	/// <returns>The solution content with the project listed once.</returns>
+	internal static string AddProjectToSlnx(string solutionContent, string projectPath)
+	{
+		XDocument solution = XDocument.Parse(solutionContent);
+		bool listed = solution.Descendants("Project").Any(project =>
+			string.Equals(((string?)project.Attribute("Path"))?.Replace('\\', '/'), projectPath, StringComparison.OrdinalIgnoreCase));
+		if (listed)
+		{
+			return solutionContent;
+		}
+
+		string newline = "\n".NormalizeLineEndings(solutionContent.DetermineLineEndings());
+		string element = $"<Project Path=\"{projectPath}\" />";
+
+		// A solution with nothing in it may be written as a single self-closing element.
+		Match empty = EmptySolutionPattern().Match(solutionContent);
+		if (empty.Success)
+		{
+			string replacement = $"<Solution{empty.Groups["attributes"].Value.TrimEnd()}>{newline}  {element}{newline}</Solution>";
+			return solutionContent.Remove(empty.Index, empty.Length).Insert(empty.Index, replacement);
+		}
+
+		int closeIndex = solutionContent.LastIndexOf("</Solution>", StringComparison.Ordinal);
+		int lineStart = solutionContent.LastIndexOf('\n', Math.Max(closeIndex - 1, 0)) + 1;
+		string indent = solutionContent[lineStart..closeIndex];
+		return string.IsNullOrWhiteSpace(indent)
+			? solutionContent.Insert(lineStart, $"{indent}  {element}{newline}")
+			: solutionContent.Insert(closeIndex, $"{newline}  {element}{newline}");
+	}
+
+	[GeneratedRegex(@"<Solution(?<attributes>(\s+[^>]*?)?)\s*/>")]
+	private static partial Regex EmptySolutionPattern();
 
 	/// <summary>
 	/// Builds a test project file that builds as written.
