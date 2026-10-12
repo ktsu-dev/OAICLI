@@ -1,6 +1,6 @@
-## v1.1.10 (patch)
+## v1.1.11 (patch)
 
-Changes since v1.1.9:
+Changes since v1.1.10:
 
-- Generate the reply schema with the names the reply is read back with [patch] ([@Claude](https://github.com/Claude))
+- Find and extend .slnx solutions in oai test and oai document [patch] ([@Claude](https://github.com/Claude))
 
