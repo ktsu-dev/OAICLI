@@ -3,6 +3,7 @@
 namespace ktsu.OAICLI.Test;
 
 using System.Net;
+using System.Xml.Linq;
 
 /// <summary>
 /// Covers what <c>oai test</c> writes into the user's solution and when: nothing until the request
@@ -11,6 +12,11 @@ using System.Net;
 [TestClass]
 public sealed class TestCommandScaffoldTests
 {
+	/// <summary>
+	/// The projects an <c>.slnx</c> listing only the project under test should list once scaffolded.
+	/// </summary>
+	private static readonly string[] SlnxProjectsAfterScaffolding = ["Sample/Sample.csproj", "Sample.Test/Sample.Test.csproj"];
+
 	/// <summary>
 	/// A scratch solution directory unique to the running test, removed during cleanup.
 	/// </summary>
@@ -122,12 +128,69 @@ public sealed class TestCommandScaffoldTests
 	}
 
 	/// <summary>
-	/// Writes <c>Sample.sln</c> and the <c>Sample</c> project it is named after.
+	/// An <c>.slnx</c> solution is XML, so the test project goes in as a <c>Project</c> element rather
+	/// than the <c>.sln</c> text block, and running the command again does not add it a second time.
+	/// </summary>
+	[TestMethod]
+	public void ScaffoldTestProjectRegistersTheTestProjectInAnSlnxOnce()
+	{
+		WriteSolution("<Project Sdk=\"Microsoft.NET.Sdk\">\n  <PropertyGroup>\n    <TargetFramework>net8.0</TargetFramework>\n  </PropertyGroup>\n</Project>\n", "Sample.slnx", "<Solution>\n  <Project Path=\"Sample/Sample.csproj\" />\n</Solution>\n");
+
+		TestCommand.ScaffoldTestProject(solutionDirectory);
+		TestCommand.ScaffoldTestProject(solutionDirectory);
+
+		XDocument solution = XDocument.Load(Path.Combine(solutionDirectory, "Sample.slnx"));
+		string[] paths = [.. solution.Descendants("Project").Select(project => (string?)project.Attribute("Path") ?? string.Empty)];
+		CollectionAssert.AreEqual(SlnxProjectsAfterScaffolding, paths);
+	}
+
+	/// <summary>
+	/// The new element goes in last, on its own line, indented like its siblings and using the file's
+	/// own line endings.
+	/// </summary>
+	[TestMethod]
+	public void AddProjectToSlnxAppendsAnElementInTheFilesOwnStyle()
+	{
+		const string solution = "<Solution>\r\n  <Project Path=\"Sample/Sample.csproj\" />\r\n</Solution>\r\n";
+
+		string result = TestCommand.AddProjectToSlnx(solution, "Sample.Test/Sample.Test.csproj");
+
+		Assert.AreEqual("<Solution>\r\n  <Project Path=\"Sample/Sample.csproj\" />\r\n  <Project Path=\"Sample.Test/Sample.Test.csproj\" />\r\n</Solution>\r\n", result);
+	}
+
+	/// <summary>
+	/// A solution with no projects can be written as one self-closing element, which has no closing
+	/// tag to insert in front of.
+	/// </summary>
+	[TestMethod]
+	public void AddProjectToSlnxOpensASelfClosingSolution()
+	{
+		string result = TestCommand.AddProjectToSlnx("<Solution />\n", "Sample.Test/Sample.Test.csproj");
+
+		Assert.AreEqual("<Solution>\n  <Project Path=\"Sample.Test/Sample.Test.csproj\" />\n</Solution>\n", result);
+	}
+
+	/// <summary>
+	/// A test project already listed, whether inside a solution folder or written with backslashes,
+	/// counts as present.
+	/// </summary>
+	/// <param name="solution">The solution's content.</param>
+	[TestMethod]
+	[DataRow("<Solution>\n  <Folder Name=\"/tests/\">\n    <Project Path=\"Sample.Test/Sample.Test.csproj\" />\n  </Folder>\n</Solution>\n", DisplayName = "Inside a folder")]
+	[DataRow("<Solution>\n  <Project Path=\"Sample.Test\\Sample.Test.csproj\" />\n</Solution>\n", DisplayName = "Backslashes")]
+	[DataRow("<Solution>\n  <Project Path=\"sample.test/sample.test.csproj\" />\n</Solution>\n", DisplayName = "Different case")]
+	public void AddProjectToSlnxLeavesAListedProjectAlone(string solution) =>
+		Assert.AreEqual(solution, TestCommand.AddProjectToSlnx(solution, "Sample.Test/Sample.Test.csproj"));
+
+	/// <summary>
+	/// Writes a solution and the <c>Sample</c> project it is named after.
 	/// </summary>
 	/// <param name="projectContent">The project file's content.</param>
-	private void WriteSolution(string projectContent)
+	/// <param name="solutionFileName">The solution's file name, <c>Sample.sln</c> unless given.</param>
+	/// <param name="solutionContent">The solution's content, an empty <c>.sln</c> unless given.</param>
+	private void WriteSolution(string projectContent, string solutionFileName = "Sample.sln", string solutionContent = "Microsoft Visual Studio Solution File, Format Version 12.00\nGlobal\nEndGlobal\n")
 	{
-		File.WriteAllText(Path.Combine(solutionDirectory, "Sample.sln"), "Microsoft Visual Studio Solution File, Format Version 12.00\nGlobal\nEndGlobal\n");
+		File.WriteAllText(Path.Combine(solutionDirectory, solutionFileName), solutionContent);
 		string projectDirectory = Path.Combine(solutionDirectory, "Sample");
 		_ = Directory.CreateDirectory(projectDirectory);
 		File.WriteAllText(Path.Combine(projectDirectory, "Sample.csproj"), projectContent);

@@ -266,6 +266,41 @@ public sealed class CodeReviewCommandTests
 	}
 
 	/// <summary>
+	/// <c>dotnet new sln</c> writes <c>.slnx</c> by default as of the .NET 10 SDK, and a repository
+	/// with only that file is as much a solution as one with a <c>.sln</c>.
+	/// </summary>
+	[TestMethod]
+	public void FindProjectAndSolutionFilePathsFindsAnSlnxSolution()
+	{
+		string solutionPath = Path.Combine(workingDirectory, "Sample.slnx");
+		File.WriteAllText(solutionPath, "<Solution />\n");
+		string projectDirectory = Path.Combine(workingDirectory, "Sample");
+		_ = Directory.CreateDirectory(projectDirectory);
+		string projectPath = Path.Combine(projectDirectory, "Sample.csproj");
+		File.WriteAllText(projectPath, string.Empty);
+
+		bool found = CodeReviewCommand.FindProjectAndSolutionFilePaths(workingDirectory, out string solutionFilePath, out string projectFilePath);
+
+		Assert.IsTrue(found);
+		Assert.AreEqual(Path.GetFullPath(solutionPath), solutionFilePath);
+		Assert.AreEqual(Path.GetFullPath(projectPath), projectFilePath);
+	}
+
+	/// <summary>
+	/// A repository part way through migrating can hold both formats side by side. The classic one is
+	/// chosen so the pick does not depend on the order the file system lists them in.
+	/// </summary>
+	[TestMethod]
+	public void FindSolutionAbovePrefersTheSlnBesideAnSlnx()
+	{
+		File.WriteAllText(Path.Combine(workingDirectory, "Sample.slnx"), "<Solution />\n");
+		string solutionPath = Path.Combine(workingDirectory, "Sample.sln");
+		File.WriteAllText(solutionPath, string.Empty);
+
+		Assert.AreEqual(Path.GetFullPath(solutionPath), CodeReviewCommand.FindSolutionAbove(workingDirectory));
+	}
+
+	/// <summary>
 	/// Without a solution the commands cannot decide what to send, so discovery reports failure and
 	/// hands back an empty solution path.
 	/// </summary>
