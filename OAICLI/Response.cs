@@ -4,6 +4,7 @@ namespace ktsu.OAICLI;
 
 using System.Collections.ObjectModel;
 using System.Text.Json.Nodes;
+using NJsonSchema.Generation;
 
 internal class Response
 {
@@ -39,8 +40,16 @@ internal class JsonSchemaFormat
 	/// because that object is a graph: every property it holds points back at its parent. Serializing
 	/// it with <see cref="System.Text.Json"/> walks that cycle and throws, which took the whole request
 	/// with it. NJsonSchema knows how to write itself, so let it, and carry the result as data.
+	/// <para>
+	/// The schema is generated with <see cref="Json.SerializerOptions"/>, the options the reply is read
+	/// back with, so the property names the model is told to use are the ones that bind. Left to its
+	/// defaults NJsonSchema names them after the CLR properties, and <c>CommitMessage</c> never
+	/// matches <c>commit_message</c>.
+	/// </para>
 	/// </remarks>
-	public JsonNode Schema { get; } = JsonNode.Parse(NJsonSchema.JsonSchema.FromType<Response>().ToJson()) ?? new JsonObject();
+	public JsonNode Schema { get; } = JsonNode.Parse(
+		NJsonSchema.JsonSchema.FromType<Response>(new SystemTextJsonSchemaGeneratorSettings { SerializerOptions = Json.SerializerOptions }).ToJson())
+		?? new JsonObject();
 
 	/// <summary>
 	/// Gets a value indicating whether the API should enforce the schema exactly.

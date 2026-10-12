@@ -80,9 +80,9 @@ public sealed class ModelTests
 
 		JsonNode? properties = format.JsonSchema.Schema["properties"];
 		Assert.IsNotNull(properties);
-		Assert.IsNotNull(properties["Summary"]);
-		Assert.IsNotNull(properties["Files"]);
-		Assert.IsNotNull(properties["CommitMessage"]);
+		Assert.IsNotNull(properties["summary"]);
+		Assert.IsNotNull(properties["files"]);
+		Assert.IsNotNull(properties["commit_message"]);
 	}
 
 	/// <summary>

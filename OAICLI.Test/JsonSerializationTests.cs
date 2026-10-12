@@ -3,6 +3,7 @@
 namespace ktsu.OAICLI.Test;
 
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 /// <summary>
 /// Covers <see cref="Json.SerializerOptions"/>. The wire format is not ours to choose, so these
@@ -116,9 +117,33 @@ public sealed class JsonSerializationTests
 		JsonElement schema = document.RootElement.GetProperty("response_format").GetProperty("json_schema").GetProperty("schema");
 		Assert.AreEqual(JsonValueKind.Object, schema.ValueKind);
 		JsonElement properties = schema.GetProperty("properties");
-		Assert.IsTrue(properties.TryGetProperty("Summary", out _));
-		Assert.IsTrue(properties.TryGetProperty("Files", out _));
-		Assert.IsTrue(properties.TryGetProperty("CommitMessage", out _));
+		Assert.IsTrue(properties.TryGetProperty("summary", out _));
+		Assert.IsTrue(properties.TryGetProperty("files", out _));
+		Assert.IsTrue(properties.TryGetProperty("commit_message", out _));
+	}
+
+	/// <summary>
+	/// The model answers in whatever names the schema gives it, so those names have to be the ones
+	/// the reply is read back with. The schema once used the CLR names while the reader expected
+	/// snake case, and case insensitivity does not bridge an underscore: <c>CommitMessage</c> and
+	/// <c>FilePath</c> bound empty. This builds a reply from the schema's own names and checks that
+	/// nothing is lost.
+	/// </summary>
+	[TestMethod]
+	public void AReplyWrittenInTheSchemasOwnNamesBindsEveryProperty()
+	{
+		JsonNode schema = new ResponseFormat().JsonSchema.Schema;
+
+		string json = SampleFor(schema, schema).ToJsonString();
+		Response? response = JsonSerializer.Deserialize<Response>(json, Json.SerializerOptions);
+
+		Assert.IsNotNull(response, json);
+		Assert.AreNotEqual(string.Empty, response.Summary, json);
+		Assert.AreNotEqual(string.Empty, response.CommitMessage, json);
+		Assert.AreEqual(1, response.Files.Count, json);
+		Assert.AreNotEqual(string.Empty, response.Files[0].FilePath, json);
+		Assert.AreNotEqual(string.Empty, response.Files[0].Purpose, json);
+		Assert.AreNotEqual(string.Empty, response.Files[0].Contents, json);
 	}
 
 	/// <summary>
@@ -207,5 +232,48 @@ public sealed class JsonSerializationTests
 		Assert.AreEqual(original.Files[0].FilePath, roundTripped.Files[0].FilePath);
 		Assert.AreEqual(original.Files[0].Purpose, roundTripped.Files[0].Purpose);
 		Assert.AreEqual(original.Files[0].Contents, roundTripped.Files[0].Contents);
+	}
+
+	/// <summary>
+	/// Builds a value that conforms to <paramref name="node"/>: an object filled from its properties,
+	/// a one-element array of its items, or a string for anything else. References are followed
+	/// through <paramref name="root"/>.
+	/// </summary>
+	private static JsonNode SampleFor(JsonNode root, JsonNode node)
+	{
+		if (node["$ref"]?.GetValue<string>() is string reference)
+		{
+			JsonNode? target = root;
+			foreach (string segment in reference.TrimStart('#', '/').Split('/'))
+			{
+				target = target?[segment];
+			}
+
+			Assert.IsNotNull(target, $"Unresolved schema reference {reference}");
+			return SampleFor(root, target);
+		}
+
+		if (node["oneOf"] is JsonArray oneOf)
+		{
+			return SampleFor(root, oneOf.First(n => n?["type"]?.ToString() != "null")!);
+		}
+
+		if (node["properties"] is JsonObject properties)
+		{
+			JsonObject sample = [];
+			foreach ((string name, JsonNode? property) in properties)
+			{
+				sample[name] = SampleFor(root, property!);
+			}
+
+			return sample;
+		}
+
+		if (node["items"] is JsonNode items)
+		{
+			return new JsonArray(SampleFor(root, items));
+		}
+
+		return JsonValue.Create("sample")!;
 	}
 }
