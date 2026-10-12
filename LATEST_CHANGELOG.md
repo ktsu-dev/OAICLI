@@ -1,7 +1,6 @@
-## v1.1.9 (patch)
+## v1.1.10 (patch)
 
-Changes since v1.1.8:
+Changes since v1.1.9:
 
-- Drop the unused Spectre.Console.ImageSharp reference [patch] ([@Claude](https://github.com/Claude))
-- Scaffold the test project only after a successful request, and make it build [patch] ([@Claude](https://github.com/Claude))
+- Generate the reply schema with the names the reply is read back with [patch] ([@Claude](https://github.com/Claude))
 
