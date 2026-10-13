@@ -543,6 +543,36 @@ public sealed class CodeReviewCommandTests
 	}
 
 	/// <summary>
+	/// The request <see cref="TestCommand"/> builds for a real solution on disk carries the test
+	/// instructions, so the rules checked in <c>TestCommandPromptTests</c> are the ones actually sent.
+	/// </summary>
+	[TestMethod]
+	public void TestCommandTaskRequestSendsTheTestInstructions()
+	{
+		// Arrange
+		File.WriteAllText(Path.Combine(workingDirectory, "Sample.sln"), TwoProjectSolution);
+		string projectDirectory = Path.Combine(workingDirectory, "Sample");
+		_ = Directory.CreateDirectory(projectDirectory);
+		File.WriteAllText(Path.Combine(projectDirectory, "Sample.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\" />\r\n");
+
+		// Act -- the request discovers from the current directory, so it has to be moved and put back
+		string originalDirectory = Directory.GetCurrentDirectory();
+		Request request;
+		try
+		{
+			Directory.SetCurrentDirectory(workingDirectory);
+			request = new TestCommand().TaskRequest;
+		}
+		finally
+		{
+			Directory.SetCurrentDirectory(originalDirectory);
+		}
+
+		// Assert
+		Assert.AreEqual(TestCommand.TestTaskDescription, request.Description);
+	}
+
+	/// <summary>
 	/// The edit must not leave the file carrying two newline conventions at once.
 	/// </summary>
 	[TestMethod]
