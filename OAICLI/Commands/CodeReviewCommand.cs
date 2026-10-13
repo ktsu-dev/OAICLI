@@ -495,14 +495,12 @@ internal class DocumentCommand : CodeReviewCommand
 
 internal partial class TestCommand : CodeReviewCommand
 {
-	internal override Request TaskRequest
-	{
-		get
-		{
-			Request taskRequest = new()
-			{
-				Name = "Generate Code Tests",
-				Description = @"
+	/// <summary>
+	/// The instructions sent to the model with the code to test. Its rules and worked example have to
+	/// agree with the MSTest version and the <c>.editorconfig</c> the generated tests will be built
+	/// under, or a model that follows them faithfully writes tests that do not compile.
+	/// </summary>
+	internal const string TestTaskDescription = @"
 **Task:**
 
 Generate **comprehensive and maintainable unit tests** for the provided C# classes. The tests should:
@@ -527,7 +525,7 @@ Generate **comprehensive and maintainable unit tests** for the provided C# class
    - Use **file-scoped namespaces**.
    - Place `using` directives **within** the namespace.
    - Follow **PascalCase** for public members and **camelCase** for private fields and local variables.
-   - Use **var** for local variables unless explicit types improve readability.
+   - Use **explicit types** for local variables; do not use `var`.
    - Avoid **underscores** in identifiers.
    - Ensure clean formatting with tabs (size 4) and UTF-8 encoding, including a **final newline**.
    - Don't include using declarations for any namespaces that are already globally imported in the project.
@@ -546,7 +544,7 @@ Generate **comprehensive and maintainable unit tests** for the provided C# class
 	 - Behavior of any applied **data annotations** or **custom validation attributes**.
    - Test methods for:
 	 - All overloads and execution paths, including asynchronous scenarios.
-	 - Exception handling using `Assert.ThrowsException<T>()` for verifying exception types and messages.
+	 - Exception handling using `Assert.ThrowsExactly<T>()` (or `Assert.ThrowsExactlyAsync<T>()` for asynchronous code) for verifying exception types and messages. `Assert.ThrowsException<T>()` was removed in MSTest 4 and must not be used.
    - Use `[DataRow]` or `[DynamicData]` for data-driven tests when applicable.
    - Ensure all tests are **self-contained** and **independent**.
    - Mock dependencies using **Moq** or similar frameworks to isolate the system under test.
@@ -578,45 +576,52 @@ Generate **comprehensive and maintainable unit tests** for the provided C# class
 **Example Output:**
 
 ```csharp
-namespace MyNamespace.Tests
+namespace MyNamespace.Tests;
+
+using System;
+
+[TestClass]
+public class MyClassTests
 {
-	using System;
-	using Moq;
-
-	[TestClass]
-	public class MyClassTests
+	/// <summary>
+	/// Validates that the default value of MyProperty is correctly set.
+	/// </summary>
+	[TestMethod]
+	public void MyPropertyDefaultValueShouldBeExpectedValue()
 	{
-		[TestMethod]
-		/// <summary>
-		/// Validates that the default value of MyProperty is correctly set.
-		/// </summary>
-		public void MyPropertyDefaultValueShouldBeExpectedValue()
-		{
-			// Arrange
-			var instance = new MyClass();
+		// Arrange
+		MyClass instance = new();
 
-			// Act
-			var result = instance.MyProperty;
+		// Act
+		string result = instance.MyProperty;
 
-			// Assert
-			Assert.AreEqual(expected: ""DefaultValue"", actual: result);
-		}
+		// Assert
+		Assert.AreEqual(expected: ""DefaultValue"", actual: result);
+	}
 
-		[TestMethod]
-		/// <summary>
-		/// Verifies that the MyMethod correctly handles null input.
-		/// </summary>
-		public void MyMethodNullInputShouldThrowArgumentNullException()
-		{
-			// Arrange
-			var instance = new MyClass();
+	/// <summary>
+	/// Verifies that the MyMethod correctly handles null input.
+	/// </summary>
+	[TestMethod]
+	public void MyMethodNullInputShouldThrowArgumentNullException()
+	{
+		// Arrange
+		MyClass instance = new();
 
-			// Act & Assert
-			Assert.ThrowsException<ArgumentNullException>(() => instance.MyMethod(null));
-		}
+		// Act & Assert
+		Assert.ThrowsExactly<ArgumentNullException>(() => instance.MyMethod(null!));
 	}
 }
-```",
+```";
+
+	internal override Request TaskRequest
+	{
+		get
+		{
+			Request taskRequest = new()
+			{
+				Name = "Generate Code Tests",
+				Description = TestTaskDescription,
 			};
 
 			if (!FindProjectAndSolutionFilePaths(Directory.GetCurrentDirectory(), out string solutionFilePath, out _))
