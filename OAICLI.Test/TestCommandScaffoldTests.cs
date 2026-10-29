@@ -13,6 +13,11 @@ using System.Xml.Linq;
 public sealed class TestCommandScaffoldTests
 {
 	/// <summary>
+	/// A plain project under test that targets <c>net8.0</c>.
+	/// </summary>
+	private const string NetEightProject = "<Project Sdk=\"Microsoft.NET.Sdk\">\n  <PropertyGroup>\n    <TargetFramework>net8.0</TargetFramework>\n  </PropertyGroup>\n</Project>\n";
+
+	/// <summary>
 	/// The projects an <c>.slnx</c> listing only the project under test should list once scaffolded.
 	/// </summary>
 	private static readonly string[] SlnxProjectsAfterScaffolding = ["Sample/Sample.csproj", "Sample.Test/Sample.Test.csproj"];
@@ -183,17 +188,65 @@ public sealed class TestCommandScaffoldTests
 		Assert.AreEqual(solution, TestCommand.AddProjectToSlnx(solution, "Sample.Test/Sample.Test.csproj"));
 
 	/// <summary>
+	/// A project whose name is not a C# identifier gets a test class in the namespace the SDK gives its
+	/// code, with a class name that compiles, and no hard-coded <c>ktsu.</c> prefix.
+	/// </summary>
+	[TestMethod]
+	public void ScaffoldTestProjectSanitisesANameThatIsNotAnIdentifier()
+	{
+		WriteSolution(NetEightProject, solutionFileName: "my-app.sln", projectName: "my-app");
+
+		TestCommand.ScaffoldTestProject(solutionDirectory);
+
+		string content = File.ReadAllText(Path.Combine(solutionDirectory, "my-app.Test", "my_appTests.cs"));
+		StringAssert.StartsWith(content, "namespace my_app.Test;");
+		StringAssert.Contains(content, "public class my_appTests");
+	}
+
+	/// <summary>
+	/// A <c>RootNamespace</c> the project sets decides the test namespace.
+	/// </summary>
+	[TestMethod]
+	public void ScaffoldTestProjectUsesTheProjectsRootNamespace()
+	{
+		WriteSolution("<Project Sdk=\"Microsoft.NET.Sdk\">\n  <PropertyGroup>\n    <TargetFramework>net8.0</TargetFramework>\n    <RootNamespace>Foo.Bar</RootNamespace>\n  </PropertyGroup>\n</Project>\n");
+
+		TestCommand.ScaffoldTestProject(solutionDirectory);
+
+		string content = File.ReadAllText(Path.Combine(solutionDirectory, "Sample.Test", "SampleTests.cs"));
+		StringAssert.StartsWith(content, "namespace Foo.Bar.Test;");
+		StringAssert.Contains(content, "public class SampleTests");
+	}
+
+	/// <summary>
+	/// Each dot-separated part of a project name becomes an identifier on its own, unless the project
+	/// sets a literal <c>RootNamespace</c>.
+	/// </summary>
+	/// <param name="projectName">The project file's name without its extension.</param>
+	/// <param name="projectContent">The project file's content.</param>
+	/// <param name="expected">The namespace expected.</param>
+	[TestMethod]
+	[DataRow("Sample", "", "Sample", DisplayName = "Already an identifier")]
+	[DataRow("my-app", "", "my_app", DisplayName = "Dash")]
+	[DataRow("2048-game", "", "_2048_game", DisplayName = "Leading digit")]
+	[DataRow("Company.3d Tools", "", "Company._3d_Tools", DisplayName = "Per segment")]
+	[DataRow("my-app", "<RootNamespace>$(MSBuildProjectName)</RootNamespace>", "my_app", DisplayName = "Property RootNamespace")]
+	public void ProjectNamespaceFollowsTheSdk(string projectName, string projectContent, string expected) =>
+		Assert.AreEqual(expected, TestCommand.ProjectNamespace(projectName, projectContent));
+
+	/// <summary>
 	/// Writes a solution and the <c>Sample</c> project it is named after.
 	/// </summary>
 	/// <param name="projectContent">The project file's content.</param>
 	/// <param name="solutionFileName">The solution's file name, <c>Sample.sln</c> unless given.</param>
 	/// <param name="solutionContent">The solution's content, an empty <c>.sln</c> unless given.</param>
-	private void WriteSolution(string projectContent, string solutionFileName = "Sample.sln", string solutionContent = "Microsoft Visual Studio Solution File, Format Version 12.00\nGlobal\nEndGlobal\n")
+	/// <param name="projectName">The project's name, <c>Sample</c> unless given.</param>
+	private void WriteSolution(string projectContent, string solutionFileName = "Sample.sln", string solutionContent = "Microsoft Visual Studio Solution File, Format Version 12.00\nGlobal\nEndGlobal\n", string projectName = "Sample")
 	{
 		File.WriteAllText(Path.Combine(solutionDirectory, solutionFileName), solutionContent);
-		string projectDirectory = Path.Combine(solutionDirectory, "Sample");
+		string projectDirectory = Path.Combine(solutionDirectory, projectName);
 		_ = Directory.CreateDirectory(projectDirectory);
-		File.WriteAllText(Path.Combine(projectDirectory, "Sample.csproj"), projectContent);
+		File.WriteAllText(Path.Combine(projectDirectory, $"{projectName}.csproj"), projectContent);
 	}
 
 	/// <summary>

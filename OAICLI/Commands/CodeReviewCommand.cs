@@ -684,7 +684,8 @@ public class MyClassTests
 		string testProjectName = $"{projectName}.Test";
 		string testProjectDir = Path.Join(solutionDir, testProjectName);
 		string testProjectFilePath = Path.Join(testProjectDir, $"{testProjectName}.csproj");
-		string testClassName = $"{projectName}Tests";
+		string testNamespace = $"{ProjectNamespace(projectName, File.ReadAllText(projectFilePath))}.Test";
+		string testClassName = $"{ToIdentifier(projectName)}Tests";
 		string testFileName = $"{testClassName}.cs";
 		string testFilePath = Path.Join(testProjectDir, testFileName);
 
@@ -696,7 +697,7 @@ public class MyClassTests
 
 		if (!File.Exists(testFilePath))
 		{
-			File.WriteAllText(testFilePath, $"namespace ktsu.{testProjectName};\r\n\r\n[TestClass]\r\npublic class {testClassName}\r\n{{\r\n}}\r\n");
+			File.WriteAllText(testFilePath, $"namespace {testNamespace};\r\n\r\n[TestClass]\r\npublic class {testClassName}\r\n{{\r\n}}\r\n");
 		}
 
 		// add the test project to the solution, matching its exact path so that a sibling whose name
@@ -823,6 +824,43 @@ public class MyClassTests
 		return !string.IsNullOrEmpty(globalJsonPath)
 			&& File.ReadAllText(globalJsonPath).Contains("\"MSTest.Sdk\"", StringComparison.Ordinal);
 	}
+
+	/// <summary>
+	/// Chooses the namespace the project under test's code lives in, as the .NET SDK does.
+	/// </summary>
+	/// <remarks>
+	/// A literal <c>RootNamespace</c> the project sets wins. Otherwise each dot-separated part of the
+	/// project name becomes an identifier, so <c>my-app</c> gives <c>my_app</c>, as
+	/// <c>dotnet new</c> writes it.
+	/// </remarks>
+	/// <param name="projectName">The project file's name without its extension.</param>
+	/// <param name="projectContent">The project file's content.</param>
+	/// <returns>A namespace that compiles.</returns>
+	internal static string ProjectNamespace(string projectName, string projectContent)
+	{
+		string rootNamespace = RootNamespacePattern().Match(projectContent).Groups["namespace"].Value.Trim();
+		if (rootNamespace.Length > 0 && !rootNamespace.Contains("$(", StringComparison.Ordinal))
+		{
+			return rootNamespace;
+		}
+
+		return string.Join('.', projectName.Split('.').Select(ToIdentifier));
+	}
+
+	/// <summary>
+	/// Turns a name into a C# identifier: each character an identifier can't hold becomes <c>_</c>,
+	/// and a name that starts with a digit, or is empty, gets a leading <c>_</c>.
+	/// </summary>
+	/// <param name="name">The name to convert.</param>
+	/// <returns>A valid identifier.</returns>
+	internal static string ToIdentifier(string name)
+	{
+		string identifier = new([.. name.Select(c => char.IsLetterOrDigit(c) || c == '_' ? c : '_')]);
+		return identifier.Length == 0 || char.IsDigit(identifier[0]) ? $"_{identifier}" : identifier;
+	}
+
+	[GeneratedRegex(@"<RootNamespace>(?<namespace>[^<]*)</RootNamespace>")]
+	private static partial Regex RootNamespacePattern();
 
 	[GeneratedRegex(@"<TargetFrameworks?>(?<frameworks>[^<]*)</TargetFrameworks?>")]
 	private static partial Regex TargetFrameworkPattern();
