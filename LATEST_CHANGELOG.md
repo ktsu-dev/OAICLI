@@ -1,7 +1,6 @@
-## v1.1.12 (patch)
+## v1.1.13 (patch)
 
-Changes since v1.1.11:
+Changes since v1.1.12:
 
-- Cover the test command's request building the instructions it sends (matt-edmondson)
-- Make the oai test prompt ask for code that builds on MSTest 4 [patch] (matt-edmondson)
+- Scaffold a test namespace and class that compile for any project name [patch] (matt-edmondson)
 
