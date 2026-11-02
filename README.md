@@ -39,6 +39,12 @@ If no secret store is available — most often a Linux host with no Secret Servi
 which is common over SSH and in containers — the tool reports that and stops. It does not fall back to writing the
 key to a plain file.
 
+### CI and headless runs
+
+Set `OPENAI_API_KEY` to supply the key without a secret store or a terminal, for example from a repository secret in
+a GitHub Actions job. When it is set the tool uses it as-is: it does not read or write the secret store, does not
+prompt, and never persists the key. Leave it unset to fall back to the stored key and, failing that, the prompt.
+
 ## Installation
 
 ```bash

@@ -175,6 +175,87 @@ public sealed class AuthTests
 	}
 
 	/// <summary>
+	/// A CI job supplies the key through <c>OPENAI_API_KEY</c> on a machine with no secret store. The
+	/// variable is enough on its own: the client carries it, and the store, which throws on any
+	/// access, is never touched, so nothing is read from or written to it.
+	/// </summary>
+	[TestMethod]
+	public void GetClientUsesTheEnvironmentKeyWithoutTouchingTheSecretStore()
+	{
+		using CredentialCache cache = new(new UnavailableCredentialStore(() => new PlatformNotSupportedException()));
+
+		using HttpClient client = Auth.GetClient(cache, EnvironmentWith(" sk-from-env "));
+
+		AuthenticationHeaderValue? authorization = client.DefaultRequestHeaders.Authorization;
+		Assert.IsNotNull(authorization);
+		Assert.AreEqual("Bearer", authorization.Scheme);
+		Assert.AreEqual("sk-from-env", authorization.Parameter);
+	}
+
+	/// <summary>
+	/// The environment key wins over a stored one, and is not written over it.
+	/// </summary>
+	[TestMethod]
+	public void GetClientPrefersTheEnvironmentKeyAndDoesNotStoreIt()
+	{
+		using CredentialCache cache = NewCache();
+		Auth.StoreApiKey(cache, "sk-stored-key");
+
+		using HttpClient client = Auth.GetClient(cache, EnvironmentWith("sk-from-env"));
+
+		Assert.AreEqual("sk-from-env", client.DefaultRequestHeaders.Authorization?.Parameter);
+		Assert.IsTrue(Auth.TryGetApiKey(cache, out string stored));
+		Assert.AreEqual("sk-stored-key", stored);
+	}
+
+	/// <summary>
+	/// A blank variable is not a key, so the stored one is used as before.
+	/// </summary>
+	[TestMethod]
+	public void GetClientFallsBackToTheStoredKeyWhenTheVariableIsBlank()
+	{
+		using CredentialCache cache = NewCache();
+		Auth.StoreApiKey(cache, "sk-stored-key");
+
+		using HttpClient client = Auth.GetClient(cache, EnvironmentWith("   "));
+
+		Assert.AreEqual("sk-stored-key", client.DefaultRequestHeaders.Authorization?.Parameter);
+	}
+
+	/// <summary>
+	/// With the variable set there is nothing to ask for and nothing to migrate: no prompt (the
+	/// console gets no input, so one would fail), no secret-store access (the store throws), and
+	/// the legacy file is left for a later run that does have a store.
+	/// </summary>
+	[TestMethod]
+	public void EnsureHasApiKeyIsSatisfiedByTheEnvironmentKey()
+	{
+		using CredentialCache cache = new(new UnavailableCredentialStore(() => new PlatformNotSupportedException()));
+		FakeLegacyApiKeyStore legacy = new("sk-legacy-key");
+
+		WithTypedInput(() => Auth.EnsureHasApiKey(cache, legacy, EnvironmentWith("sk-from-env")));
+
+		Assert.AreEqual(0, legacy.ClearCount);
+	}
+
+	/// <summary>
+	/// The no-secret-store message points at the variable, since it is the way out on such a machine.
+	/// </summary>
+	[TestMethod]
+	public void TheNoSecretStoreMessageNamesTheEnvironmentVariable()
+	{
+		using CredentialCache cache = new(new UnavailableCredentialStore());
+
+		CredentialStoreException exception =
+			Assert.ThrowsExactly<CredentialStoreException>(() => Auth.TryGetApiKey(cache, out _));
+
+		Assert.Contains(Auth.ApiKeyEnvironmentVariable, exception.Message, StringComparison.Ordinal);
+	}
+
+	private static Func<string, string?> EnvironmentWith(string? apiKey) =>
+		name => name == Auth.ApiKeyEnvironmentVariable ? apiKey : null;
+
+	/// <summary>
 	/// Building a client without a key is a programming error, not a request sent with an empty
 	/// bearer token.
 	/// </summary>

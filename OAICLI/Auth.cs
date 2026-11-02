@@ -35,10 +35,20 @@ internal static class Auth
 	/// </summary>
 	internal const string CredentialServiceName = "ktsu.OAICLI";
 
+	/// <summary>
+	/// The environment variable that supplies the key for CI and other headless runs.
+	/// </summary>
+	/// <remarks>
+	/// It takes precedence over the secret store and is never written back to it, so a pipeline
+	/// secret stays a pipeline secret and a machine with no secret store or no TTY can still run.
+	/// </remarks>
+	internal const string ApiKeyEnvironmentVariable = "OPENAI_API_KEY";
+
 	private const string NoSecretStoreMessage =
 		"OAICLI keeps your OpenAI API key in the operating system's secret store, and this machine has none available. " +
 		"On Linux that usually means no Secret Service provider (libsecret with GNOME Keyring or KWallet) is installed and " +
-		"unlocked, which is common over SSH and in containers. Install and unlock one, then run OAICLI again. " +
+		"unlocked, which is common over SSH and in containers. Install and unlock one, then run OAICLI again, " +
+		"or set the " + ApiKeyEnvironmentVariable + " environment variable for this run (it is used as-is and never stored). " +
 		"OAICLI will not fall back to writing the key to a plain file.";
 
 	private static readonly Lazy<CredentialCache> LazyDefaultCache =
@@ -61,14 +71,35 @@ internal static class Auth
 	internal static CredentialCache DefaultCache => LazyDefaultCache.Value;
 
 	/// <summary>
-	/// Ensures an API key is available, migrating one out of the legacy plaintext file if it is
-	/// still there and prompting the user otherwise.
+	/// Ensures an API key is available. A key in <see cref="ApiKeyEnvironmentVariable"/> satisfies
+	/// this on its own, without touching the secret store. Otherwise a key left in the legacy
+	/// plaintext file is migrated, and the user is prompted when there is still none.
 	/// </summary>
-	internal static void EnsureHasApiKey() => EnsureHasApiKey(DefaultCache, new AppDataLegacyApiKeyStore());
+	internal static void EnsureHasApiKey() =>
+		EnsureHasApiKey(() => DefaultCache, new AppDataLegacyApiKeyStore(), Environment.GetEnvironmentVariable);
 
 	/// <inheritdoc cref="EnsureHasApiKey()"/>
-	internal static void EnsureHasApiKey(CredentialCache cache, ILegacyApiKeyStore legacy)
+	internal static void EnsureHasApiKey(CredentialCache cache, ILegacyApiKeyStore legacy) =>
+		EnsureHasApiKey(cache, legacy, _ => null);
+
+	/// <inheritdoc cref="EnsureHasApiKey()"/>
+	/// <param name="cache">The secret store the key is kept in.</param>
+	/// <param name="legacy">The plaintext file earlier versions wrote.</param>
+	/// <param name="getEnvironmentVariable">Reads an environment variable by name.</param>
+	internal static void EnsureHasApiKey(CredentialCache cache, ILegacyApiKeyStore legacy, Func<string, string?> getEnvironmentVariable)
 	{
+		Ensure.NotNull(cache);
+		EnsureHasApiKey(() => cache, legacy, getEnvironmentVariable);
+	}
+
+	private static void EnsureHasApiKey(Func<CredentialCache> getCache, ILegacyApiKeyStore legacy, Func<string, string?> getEnvironmentVariable)
+	{
+		if (TryGetEnvironmentApiKey(getEnvironmentVariable, out _))
+		{
+			return;
+		}
+
+		CredentialCache cache = getCache();
 		MigrateLegacyApiKey(cache, legacy);
 
 		while (!TryGetApiKey(cache, out _))
@@ -110,6 +141,18 @@ internal static class Auth
 
 		legacy.Clear();
 		return true;
+	}
+
+	/// <summary>
+	/// Reads the key supplied through <see cref="ApiKeyEnvironmentVariable"/>.
+	/// </summary>
+	/// <returns><see langword="true"/> when the variable holds a non-blank key.</returns>
+	internal static bool TryGetEnvironmentApiKey(Func<string, string?> getEnvironmentVariable, out string apiKey)
+	{
+		Ensure.NotNull(getEnvironmentVariable);
+
+		apiKey = getEnvironmentVariable(ApiKeyEnvironmentVariable)?.Trim() ?? string.Empty;
+		return apiKey.Length > 0;
 	}
 
 	/// <summary>
@@ -161,14 +204,26 @@ internal static class Auth
 	}
 
 	/// <summary>
-	/// Builds an <see cref="HttpClient"/> carrying the stored key as a bearer token.
+	/// Builds an <see cref="HttpClient"/> carrying the key as a bearer token: the one in
+	/// <see cref="ApiKeyEnvironmentVariable"/> when it is set, otherwise the stored one.
 	/// </summary>
-	internal static HttpClient GetClient() => GetClient(DefaultCache);
+	internal static HttpClient GetClient() => GetClient(() => DefaultCache, Environment.GetEnvironmentVariable);
 
 	/// <inheritdoc cref="GetClient()"/>
-	internal static HttpClient GetClient(CredentialCache cache)
+	internal static HttpClient GetClient(CredentialCache cache) => GetClient(cache, _ => null);
+
+	/// <inheritdoc cref="GetClient()"/>
+	/// <param name="cache">The secret store the key is kept in.</param>
+	/// <param name="getEnvironmentVariable">Reads an environment variable by name.</param>
+	internal static HttpClient GetClient(CredentialCache cache, Func<string, string?> getEnvironmentVariable)
 	{
-		if (!TryGetApiKey(cache, out string apiKey))
+		Ensure.NotNull(cache);
+		return GetClient(() => cache, getEnvironmentVariable);
+	}
+
+	private static HttpClient GetClient(Func<CredentialCache> getCache, Func<string, string?> getEnvironmentVariable)
+	{
+		if (!TryGetEnvironmentApiKey(getEnvironmentVariable, out string apiKey) && !TryGetApiKey(getCache(), out apiKey))
 		{
 			throw new InvalidOperationException(
 				$"No OpenAI API key is stored. Call {nameof(EnsureHasApiKey)} before building a client.");
