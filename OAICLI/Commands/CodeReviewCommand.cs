@@ -3,6 +3,7 @@
 namespace ktsu.OAICLI;
 
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using ktsu.Extensions;
@@ -800,18 +801,49 @@ public class MyClassTests
 	/// <remarks>
 	/// The first framework the project declares, so the reference resolves. A <c>netstandard</c>
 	/// library cannot host a test run, and a project that inherits its frameworks from an SDK declares
-	/// none; both get the framework this tool is running on, which the machine is known to have.
+	/// none; both get the framework this tool is running on, which the machine is known to have. A
+	/// .NET (Core) framework below <c>net8.0</c> gives way to a newer one the project declares, or is
+	/// raised to <c>net8.0</c>, because MSTest 4 cannot run tests there.
 	/// </remarks>
 	/// <param name="projectContent">The project file's content.</param>
 	/// <returns>A target framework moniker.</returns>
 	internal static string TestTargetFramework(string projectContent)
 	{
-		string? declared = TargetFrameworkPattern().Matches(projectContent)
+		string[] declared = [.. TargetFrameworkPattern().Matches(projectContent)
 			.SelectMany(match => match.Groups["frameworks"].Value.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-			.FirstOrDefault(framework => !framework.StartsWith("netstandard", StringComparison.OrdinalIgnoreCase));
+			.Where(framework => !framework.StartsWith("netstandard", StringComparison.OrdinalIgnoreCase))];
 
-		return declared ?? $"net{Environment.Version.Major}.0";
+		if (declared.Length == 0)
+		{
+			return $"net{Environment.Version.Major}.0";
+		}
+
+		string first = declared[0];
+		Match core = DotNetCoreFrameworkPattern().Match(first);
+		if (!core.Success || int.Parse(core.Groups["major"].Value, CultureInfo.InvariantCulture) >= MSTestMinimumDotNetMajor)
+		{
+			return first;
+		}
+
+		// MSTest 4 has no .NET (Core) adapter below net8.0, so prefer a newer framework the project
+		// already declares, and otherwise raise this one to the floor, which can still reference it.
+		string? supported = declared.FirstOrDefault(framework =>
+		{
+			Match candidate = DotNetCoreFrameworkPattern().Match(framework);
+			return candidate.Success && int.Parse(candidate.Groups["major"].Value, CultureInfo.InvariantCulture) >= MSTestMinimumDotNetMajor;
+		});
+
+		return supported ?? $"net{MSTestMinimumDotNetMajor}.0{core.Groups["platform"].Value}";
 	}
+
+	/// <summary>
+	/// The oldest .NET (Core) major version MSTest 4 ships a test adapter for. A test project targeting
+	/// an older one restores the .NET Framework adapter and crashes at run time.
+	/// </summary>
+	internal const int MSTestMinimumDotNetMajor = 8;
+
+	[GeneratedRegex(@"^net(?:coreapp)?(?<major>\d+)\.\d+(?<platform>-.*)?$", RegexOptions.IgnoreCase)]
+	private static partial Regex DotNetCoreFrameworkPattern();
 
 	/// <summary>
 	/// Whether a <c>global.json</c> at or above the solution directory pins MSTest.Sdk.

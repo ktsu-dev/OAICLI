@@ -115,7 +115,9 @@ public sealed class TestCommandScaffoldTests
 
 	/// <summary>
 	/// The test project targets the first framework the project under test declares, unless that is a
-	/// <c>netstandard</c> one or there is none, in which case it targets the running framework.
+	/// <c>netstandard</c> one or there is none, in which case it targets the running framework. A .NET
+	/// (Core) framework below <c>net8.0</c>, which MSTest 4 cannot run, gives way to a newer declared
+	/// one or is raised to <c>net8.0</c>.
 	/// </summary>
 	/// <param name="projectContent">The project under test's file content.</param>
 	/// <param name="expected">The framework expected, or an empty string for the running one.</param>
@@ -125,6 +127,13 @@ public sealed class TestCommandScaffoldTests
 	[DataRow("<TargetFrameworks>netstandard2.0;net8.0</TargetFrameworks>", "net8.0", DisplayName = "Skips netstandard")]
 	[DataRow("<TargetFramework>netstandard2.1</TargetFramework>", "", DisplayName = "Only netstandard")]
 	[DataRow("<TargetFrameworks></TargetFrameworks>", "", DisplayName = "Inherited from an SDK")]
+	[DataRow("<TargetFramework>net6.0</TargetFramework>", "net8.0", DisplayName = "net6.0 raised to the MSTest 4 floor")]
+	[DataRow("<TargetFramework>net7.0</TargetFramework>", "net8.0", DisplayName = "net7.0 raised to the MSTest 4 floor")]
+	[DataRow("<TargetFramework>netcoreapp3.1</TargetFramework>", "net8.0", DisplayName = "netcoreapp3.1 raised to the MSTest 4 floor")]
+	[DataRow("<TargetFrameworks>net6.0;net8.0</TargetFrameworks>", "net8.0", DisplayName = "Prefers a declared framework MSTest 4 supports")]
+	[DataRow("<TargetFrameworks>net6.0;net9.0;net8.0</TargetFrameworks>", "net9.0", DisplayName = "Prefers the first supported declared framework")]
+	[DataRow("<TargetFramework>net6.0-windows</TargetFramework>", "net8.0-windows", DisplayName = "Keeps the platform when raising")]
+	[DataRow("<TargetFramework>net472</TargetFramework>", "net472", DisplayName = ".NET Framework is left alone")]
 	public void TestTargetFrameworkFollowsTheProjectUnderTest(string projectContent, string expected)
 	{
 		string running = $"net{Environment.Version.Major}.0";
