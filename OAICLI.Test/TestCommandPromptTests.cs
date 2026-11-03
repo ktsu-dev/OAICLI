@@ -66,6 +66,54 @@ public sealed partial class TestCommandPromptTests
 	public void ExampleShouldPutDocumentationCommentsAboveAttributes() =>
 		Assert.DoesNotMatchRegex(DocCommentAfterAttribute(), Example);
 
+	/// <summary>
+	/// The test and mocking libraries a model might be told to use. Each must only be named by the
+	/// instructions if the scaffolded test project references it, or the faithful output fails with
+	/// CS0246.
+	/// </summary>
+	private static readonly string[] ThirdPartyTestLibraries = ["Moq", "NSubstitute", "FakeItEasy", "FluentAssertions", "AutoFixture", "xUnit", "NUnit"];
+
+	/// <summary>
+	/// Every library the instructions name has to be referenced by the project <c>oai test</c>
+	/// scaffolds for the generated tests.
+	/// </summary>
+	[TestMethod]
+	public void InstructionsShouldOnlyNameLibrariesTheScaffoldReferences()
+	{
+		string directory = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+		_ = Directory.CreateDirectory(directory);
+		try
+		{
+			string projectPath = Path.Combine(directory, "Sample", "Sample.csproj");
+			_ = Directory.CreateDirectory(Path.GetDirectoryName(projectPath)!);
+			File.WriteAllText(projectPath, "<Project Sdk=\"Microsoft.NET.Sdk\">\n  <PropertyGroup>\n    <TargetFramework>net8.0</TargetFramework>\n  </PropertyGroup>\n</Project>\n");
+			string scaffold = TestCommand.TestProjectContent(projectPath, Path.Combine(directory, "Sample.Test"), msTestSdkPinned: false);
+
+			foreach (string library in ThirdPartyTestLibraries)
+			{
+				if (TestCommand.TestTaskDescription.Contains(library, StringComparison.OrdinalIgnoreCase))
+				{
+					Assert.Contains(library, scaffold, StringComparison.OrdinalIgnoreCase, $"The instructions name {library}, which the scaffolded test project does not reference.");
+				}
+			}
+		}
+		finally
+		{
+			Directory.Delete(directory, recursive: true);
+		}
+	}
+
+	/// <summary>
+	/// The scaffold sets no <c>LangVersion</c>, so a <c>net8.0</c> test project compiles as C# 12. The
+	/// instructions must not ask for a newer language version than that.
+	/// </summary>
+	[TestMethod]
+	public void InstructionsShouldNotAskForANewerLanguageVersionThanTheScaffold() =>
+		Assert.DoesNotMatchRegex(NewerLanguageVersion(), TestCommand.TestTaskDescription);
+
+	[GeneratedRegex(@"C#\s*1[3-9]")]
+	private static partial Regex NewerLanguageVersion();
+
 	[GeneratedRegex(@"\bvar\s+\w+\s*=")]
 	private static partial Regex VarDeclaration();
 
