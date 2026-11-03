@@ -573,6 +573,68 @@ public sealed class CodeReviewCommandTests
 	}
 
 	/// <summary>
+	/// <see cref="DocumentCommand"/> only documents the files below the project, so a standalone
+	/// project with no solution anywhere above it must still produce a request for its sources.
+	/// </summary>
+	[TestMethod]
+	public void DocumentCommandTaskRequestWorksForAStandaloneProject()
+	{
+		// Arrange -- a project with no solution at or above it
+		string projectDirectory = Path.Combine(workingDirectory, "Solo");
+		_ = Directory.CreateDirectory(projectDirectory);
+		File.WriteAllText(Path.Combine(projectDirectory, "Solo.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\" />\r\n");
+		string sourcePath = Path.Combine(projectDirectory, "Class1.cs");
+		File.WriteAllText(sourcePath, "namespace Solo;\r\n\r\npublic class Class1;\r\n");
+
+		// Act -- the request discovers from the current directory, so it has to be moved and put back
+		string originalDirectory = Directory.GetCurrentDirectory();
+		Request request;
+		try
+		{
+			Directory.SetCurrentDirectory(projectDirectory);
+			request = new DocumentCommand().TaskRequest;
+		}
+		finally
+		{
+			Directory.SetCurrentDirectory(originalDirectory);
+		}
+
+		// Assert
+		Assert.AreEqual(1, request.Files.Count);
+		Assert.AreEqual("Class1.cs", Path.GetFileName(request.Files[0].FilePath));
+	}
+
+	/// <summary>
+	/// Run from a solution root, where no project sits at or above the directory, <c>document</c>
+	/// still finds the project named after the solution.
+	/// </summary>
+	[TestMethod]
+	public void FindDocumentProjectFilePathFallsBackToTheSolutionsProject()
+	{
+		File.WriteAllText(Path.Combine(workingDirectory, "Sample.sln"), TwoProjectSolution);
+		string projectDirectory = Path.Combine(workingDirectory, "Sample");
+		_ = Directory.CreateDirectory(projectDirectory);
+		string projectPath = Path.Combine(projectDirectory, "Sample.csproj");
+		File.WriteAllText(projectPath, "<Project Sdk=\"Microsoft.NET.Sdk\" />\r\n");
+
+		string result = DocumentCommand.FindDocumentProjectFilePath(workingDirectory);
+
+		Assert.AreEqual(Path.GetFullPath(projectPath), Path.GetFullPath(result));
+	}
+
+	/// <summary>
+	/// With neither a project nor a solution anywhere above it, the lookup reports nothing found rather
+	/// than throwing, so the command can say what is missing.
+	/// </summary>
+	[TestMethod]
+	public void FindDocumentProjectFilePathReturnsEmptyWhenThereIsNoProject()
+	{
+		string result = DocumentCommand.FindDocumentProjectFilePath(workingDirectory);
+
+		Assert.AreEqual(string.Empty, result);
+	}
+
+	/// <summary>
 	/// The edit must not leave the file carrying two newline conventions at once.
 	/// </summary>
 	[TestMethod]
