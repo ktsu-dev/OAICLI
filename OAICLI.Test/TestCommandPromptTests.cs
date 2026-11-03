@@ -89,12 +89,9 @@ public sealed partial class TestCommandPromptTests
 			File.WriteAllText(projectPath, "<Project Sdk=\"Microsoft.NET.Sdk\">\n  <PropertyGroup>\n    <TargetFramework>net8.0</TargetFramework>\n  </PropertyGroup>\n</Project>\n");
 			string scaffold = TestCommand.TestProjectContent(projectPath, Path.Combine(directory, "Sample.Test"), msTestSdkPinned: false);
 
-			foreach (string library in ThirdPartyTestLibraries)
+			foreach (string library in ThirdPartyTestLibraries.Where(library => TestCommand.TestTaskDescription.Contains(library, StringComparison.OrdinalIgnoreCase)))
 			{
-				if (TestCommand.TestTaskDescription.Contains(library, StringComparison.OrdinalIgnoreCase))
-				{
-					Assert.Contains(library, scaffold, StringComparison.OrdinalIgnoreCase, $"The instructions name {library}, which the scaffolded test project does not reference.");
-				}
+				Assert.Contains(library, scaffold, StringComparison.OrdinalIgnoreCase, $"The instructions name {library}, which the scaffolded test project does not reference.");
 			}
 		}
 		finally
