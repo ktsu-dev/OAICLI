@@ -526,7 +526,7 @@ internal partial class TestCommand : CodeReviewCommand
 Generate **comprehensive and maintainable unit tests** for the provided C# classes. The tests should:
 
 - Target **.NET 8** and **.NET 9** frameworks.
-- Utilize features from **C# 13.0**, including modern constructs like records, enhanced pattern matching, nullable reference types, target-typed `new` expressions, and collection expressions.
+- Utilize modern C# features that the test project's target framework supports by default (C# 12 for `net8.0`), such as records, enhanced pattern matching, nullable reference types, target-typed `new` expressions, and collection expressions.
 - Be written using the **MSTest** framework.
 - Cover all properties and methods thoroughly, including normal scenarios, edge cases, and error handling.
 - Follow strict coding conventions and standards outlined below.
@@ -567,9 +567,9 @@ Generate **comprehensive and maintainable unit tests** for the provided C# class
 	 - Exception handling using `Assert.ThrowsExactly<T>()` (or `Assert.ThrowsExactlyAsync<T>()` for asynchronous code) for verifying exception types and messages. `Assert.ThrowsException<T>()` was removed in MSTest 4 and must not be used.
    - Use `[DataRow]` or `[DynamicData]` for data-driven tests when applicable.
    - Ensure all tests are **self-contained** and **independent**.
-   - Mock dependencies using **Moq** or similar frameworks to isolate the system under test.
+   - No mocking library is referenced by the test project, so isolate the system under test with **hand-written fakes or stubs**.
 
-5. **C# 13.0 Features:**
+5. **Modern C# Features:**
    - Use modern features to simplify and improve test clarity, such as:
 	 - Enhanced pattern matching.
 	 - Target-typed `new`.
