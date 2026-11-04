@@ -472,9 +472,11 @@ internal class DocumentCommand : CodeReviewCommand
 				Description = "Add documentation comments to these code files.",
 			};
 
-			if (!FindProjectAndSolutionFilePaths(Directory.GetCurrentDirectory(), out _, out string projectFilePath))
+			string currentDirectory = Directory.GetCurrentDirectory();
+			string projectFilePath = FindDocumentProjectFilePath(currentDirectory);
+			if (string.IsNullOrEmpty(projectFilePath))
 			{
-				throw new InvalidOperationException("Could not find project and solution files.");
+				throw new InvalidOperationException($"Could not find a .csproj at or above {currentDirectory}.");
 			}
 
 			IEnumerable<string> filePaths = FindCSCodeBelow(projectFilePath);
@@ -490,6 +492,24 @@ internal class DocumentCommand : CodeReviewCommand
 
 			return taskRequest;
 		}
+	}
+
+	/// <summary>
+	/// Finds the project <c>document</c> works on. It only gathers files below the project, so a
+	/// solution is not required: the nearest project at or above <paramref name="path"/> is used, and
+	/// the solution-based lookup is only a fallback for running from a solution root.
+	/// </summary>
+	/// <param name="path">The directory or file to start the search from.</param>
+	/// <returns>The project's path, or an empty string when none is found.</returns>
+	internal static string FindDocumentProjectFilePath(string path)
+	{
+		string projectFilePath = FindCSProjAbove(path);
+		if (string.IsNullOrEmpty(projectFilePath))
+		{
+			_ = FindProjectAndSolutionFilePaths(path, out _, out projectFilePath);
+		}
+
+		return projectFilePath;
 	}
 }
 
