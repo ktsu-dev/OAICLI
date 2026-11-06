@@ -558,12 +558,15 @@ internal class DocumentCommand : CodeReviewCommand
 	/// </summary>
 	/// <param name="path">The directory or file to start the search from.</param>
 	/// <returns>The project's path, or an empty string when none is found.</returns>
-	internal static string FindDocumentProjectFilePath(string path) =>
-		FindProjectAndSolutionFilePaths(path, out _, out string projectFilePath)
-			? projectFilePath
-			: FindSolutionAbove(path).Length == 0
-				? FindCSProjAbove(path)
-				: string.Empty;
+	internal static string FindDocumentProjectFilePath(string path)
+	{
+		if (FindProjectAndSolutionFilePaths(path, out string solutionFilePath, out string projectFilePath))
+		{
+			return projectFilePath;
+		}
+
+		return string.IsNullOrEmpty(solutionFilePath) ? FindCSProjAbove(path) : string.Empty;
+	}
 }
 
 internal partial class TestCommand : CodeReviewCommand
