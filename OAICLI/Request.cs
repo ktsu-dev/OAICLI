@@ -16,6 +16,12 @@ internal class Request
 	public string Description { get; set; } = string.Empty;
 	public Collection<FileDefinition> Files { get; set; } = [];
 
+	/// <summary>
+	/// Serializes this request into the text the model reads, with source characters left as they are.
+	/// </summary>
+	/// <returns>The JSON payload of the user message.</returns>
+	internal string ToMessageText() => JsonSerializer.Serialize(this, Json.MessageTextOptions);
+
 	internal string Send()
 	{
 		Auth.EnsureHasApiKey();
@@ -47,7 +53,7 @@ internal class Request
 						new()
 						{
 							Type = MessageContentType.Text,
-							Text = JsonSerializer.Serialize(this, Json.SerializerOptions),
+							Text = ToMessageText(),
 						},
 					],
 				},
