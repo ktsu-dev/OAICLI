@@ -645,10 +645,13 @@ public class MyClassTests
 				Description = TestTaskDescription,
 			};
 
-			if (!FindProjectAndSolutionFilePaths(Directory.GetCurrentDirectory(), out string solutionFilePath, out _))
+			if (!FindProjectAndSolutionFilePaths(Directory.GetCurrentDirectory(), out string solutionFilePath, out string projectFilePath))
 			{
 				throw new InvalidOperationException("Could not find project and solution files.");
 			}
+
+			// refuse before the request is sent, so a run from the wrong folder isn't billed
+			EnsureNotATestProject(projectFilePath);
 
 			IEnumerable<string> filePaths = FindCSCodeBelow(solutionFilePath);
 			foreach (string filePath in filePaths)
@@ -689,6 +692,49 @@ public class MyClassTests
 	}
 
 	/// <summary>
+	/// Throws when <paramref name="projectFilePath"/> is itself a test project.
+	/// </summary>
+	/// <remarks>
+	/// The project is the nearest one at or above the current directory, so a run from inside
+	/// <c>Foo.Test/</c> resolves to <c>Foo.Test</c>. Scaffolding tests for it would add a
+	/// <c>Foo.Test.Test</c> project to the solution and ask the model to test the tests.
+	/// </remarks>
+	/// <param name="projectFilePath">The project the command resolved to.</param>
+	/// <exception cref="InvalidOperationException">The project is a test project.</exception>
+	internal static void EnsureNotATestProject(string projectFilePath)
+	{
+		if (IsTestProject(projectFilePath))
+		{
+			string projectName = Path.GetFileNameWithoutExtension(projectFilePath);
+			throw new InvalidOperationException($"{projectName} is a test project. Run oai test from the project under test, not its test project.");
+		}
+	}
+
+	/// <summary>
+	/// Reports whether a project is a test project: one named <c>*.Test</c> or <c>*.Tests</c>, built
+	/// with <c>MSTest.Sdk</c>, referencing <c>Microsoft.NET.Test.Sdk</c>, or setting
+	/// <c>IsTestProject</c> to true.
+	/// </summary>
+	/// <param name="projectFilePath">The project file to inspect.</param>
+	/// <returns><see langword="true"/> when the project is a test project.</returns>
+	internal static bool IsTestProject(string projectFilePath)
+	{
+		string projectName = Path.GetFileNameWithoutExtension(projectFilePath);
+		if (projectName.EndsWith(".Test", StringComparison.OrdinalIgnoreCase) || projectName.EndsWith(".Tests", StringComparison.OrdinalIgnoreCase))
+		{
+			return true;
+		}
+
+		string content = File.ReadAllText(projectFilePath);
+		return content.Contains("MSTest.Sdk", StringComparison.OrdinalIgnoreCase)
+			|| content.Contains("Microsoft.NET.Test.Sdk", StringComparison.OrdinalIgnoreCase)
+			|| IsTestProjectPropertyPattern().IsMatch(content);
+	}
+
+	[GeneratedRegex(@"<IsTestProject>\s*true\s*</IsTestProject>", RegexOptions.IgnoreCase)]
+	private static partial Regex IsTestProjectPropertyPattern();
+
+	/// <summary>
 	/// Adds a test project for the project found from <paramref name="path"/> to its solution, unless
 	/// the solution already has one.
 	/// </summary>
@@ -699,6 +745,8 @@ public class MyClassTests
 		{
 			throw new InvalidOperationException("Could not find project and solution files.");
 		}
+
+		EnsureNotATestProject(projectFilePath);
 
 		string solutionDir = Path.GetDirectoryName(solutionFilePath) ?? string.Empty;
 		string projectName = Path.GetFileNameWithoutExtension(projectFilePath);
