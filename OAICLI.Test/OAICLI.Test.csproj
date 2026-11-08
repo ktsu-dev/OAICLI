@@ -10,5 +10,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\OAICLI\OAICLI.csproj" />
+    <PackageReference Include="Spectre.Console.Testing" />
   </ItemGroup>
 </Project>

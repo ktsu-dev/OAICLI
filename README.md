@@ -20,7 +20,7 @@ OAICLI scans the current `.sln` and `.csproj` files, gathers C# source files, an
 ## Tech
 
 - Built on `ktsu.Sdk.App` (multi-targeted from netstandard2.0 through net10.0).
-- CLI uses Spectre.Console.Cli with `CommandLineParser` for option parsing, plus Spectre's `Json` and `ImageSharp` extensions for rich console output.
+- CLI uses Spectre.Console.Cli for command and option parsing, plus Spectre's `Json` extension for rich console output.
 - Calls the OpenAI HTTP API directly (`POST https://api.openai.com/v1/chat/completions`) — does not depend on any OpenAI SDK.
 - The expected response schema is generated via `NJsonSchema`.
 - Hard-codes the `gpt-4o` model.
