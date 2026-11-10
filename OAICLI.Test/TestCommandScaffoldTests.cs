@@ -244,6 +244,49 @@ public sealed class TestCommandScaffoldTests
 		Assert.AreEqual(expected, TestCommand.ProjectNamespace(projectName, projectContent));
 
 	/// <summary>
+	/// Run from inside the existing test project, the nearest project is the test project. Scaffolding
+	/// for it would add <c>Sample.Test.Test</c> to the solution, so the command refuses and writes nothing.
+	/// </summary>
+	[TestMethod]
+	public void ScaffoldRefusesToRunFromInsideTheTestProject()
+	{
+		const string SolutionContent = "Microsoft Visual Studio Solution File, Format Version 12.00\nProject(\"{9A19103F-16F7-4668-BE54-9A1E7A4F7556}\") = \"Sample\", \"Sample\\Sample.csproj\", \"{11111111-1111-1111-1111-111111111111}\"\nEndProject\nProject(\"{9A19103F-16F7-4668-BE54-9A1E7A4F7556}\") = \"Sample.Test\", \"Sample.Test\\Sample.Test.csproj\", \"{22222222-2222-2222-2222-222222222222}\"\nEndProject\nGlobal\nEndGlobal\n";
+		WriteSolution(NetEightProject, solutionContent: SolutionContent);
+		string testProjectDirectory = Path.Combine(solutionDirectory, "Sample.Test");
+		_ = Directory.CreateDirectory(testProjectDirectory);
+		File.WriteAllText(Path.Combine(testProjectDirectory, "Sample.Test.csproj"), "<Project Sdk=\"MSTest.Sdk/4.3.3\">\n</Project>\n");
+
+		InvalidOperationException exception = Assert.ThrowsExactly<InvalidOperationException>(() => TestCommand.ScaffoldTestProject(testProjectDirectory));
+
+		StringAssert.Contains(exception.Message, "Sample.Test is a test project");
+		Assert.IsFalse(Directory.Exists(Path.Combine(solutionDirectory, "Sample.Test.Test")), "A Sample.Test.Test project was scaffolded.");
+		Assert.AreEqual(SolutionContent, File.ReadAllText(Path.Combine(solutionDirectory, "Sample.sln")));
+	}
+
+	/// <summary>
+	/// Each of the ways a project marks itself as a test project counts, and a plain project doesn't.
+	/// </summary>
+	/// <param name="projectName">The project's file name, without the extension.</param>
+	/// <param name="content">The project file's content.</param>
+	/// <param name="expected">Whether the project is a test project.</param>
+	[TestMethod]
+	[DataRow("Sample.Test", "<Project Sdk=\"Microsoft.NET.Sdk\" />", true)]
+	[DataRow("Sample.Tests", "<Project Sdk=\"Microsoft.NET.Sdk\" />", true)]
+	[DataRow("Checks", "<Project>\n  <Sdk Name=\"MSTest.Sdk\" />\n</Project>", true)]
+	[DataRow("Checks", "<Project Sdk=\"Microsoft.NET.Sdk\">\n  <ItemGroup>\n    <PackageReference Include=\"Microsoft.NET.Test.Sdk\" />\n  </ItemGroup>\n</Project>", true)]
+	[DataRow("Checks", "<Project Sdk=\"Microsoft.NET.Sdk\">\n  <PropertyGroup>\n    <IsTestProject> True </IsTestProject>\n  </PropertyGroup>\n</Project>", true)]
+	[DataRow("Checks", "<Project Sdk=\"Microsoft.NET.Sdk\">\n  <PropertyGroup>\n    <IsTestProject>false</IsTestProject>\n  </PropertyGroup>\n</Project>", false)]
+	[DataRow("Sample", NetEightProject, false)]
+	[DataRow("Sample.Testing", NetEightProject, false)]
+	public void IsTestProjectRecognisesTestProjects(string projectName, string content, bool expected)
+	{
+		string projectFilePath = Path.Combine(solutionDirectory, $"{projectName}.csproj");
+		File.WriteAllText(projectFilePath, content);
+
+		Assert.AreEqual(expected, TestCommand.IsTestProject(projectFilePath));
+	}
+
+	/// <summary>
 	/// Writes a solution and the <c>Sample</c> project it is named after.
 	/// </summary>
 	/// <param name="projectContent">The project file's content.</param>
