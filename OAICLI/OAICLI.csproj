@@ -4,7 +4,6 @@
   <Sdk Name="ktsu.Sdk.ConsoleApp" />
 
   <ItemGroup>
-    <PackageReference Include="CommandLineParser" />
     <PackageReference Include="ktsu.AppDataStorage" />
     <PackageReference Include="ktsu.CredentialCache" />
     <PackageReference Include="ktsu.Extensions" />
@@ -15,6 +14,5 @@
     <PackageReference Include="Spectre.Console.Ansi" />
     <PackageReference Include="Spectre.Console.Cli" />
     <PackageReference Include="Spectre.Console.Json" />
-    <PackageReference Include="Spectre.Console.Testing" />
   </ItemGroup>
 </Project>
