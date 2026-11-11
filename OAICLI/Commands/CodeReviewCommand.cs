@@ -432,18 +432,73 @@ internal abstract class CodeReviewCommand : Command<CodeReviewCommand.Settings>
 		projectFilePath = FindCSProjAbove(path);
 
 		bool foundSolution = !string.IsNullOrEmpty(solutionFilePath);
-		bool foundProject = !string.IsNullOrEmpty(projectFilePath);
-		if (foundSolution && !foundProject)
+		if (!foundSolution)
 		{
-			string solutionDir = Path.GetDirectoryName(solutionFilePath) ?? string.Empty;
-			string solutionName = Path.GetFileNameWithoutExtension(solutionFilePath);
-			string projectDir = Path.Join(solutionDir, solutionName);
-			projectFilePath = Directory.Exists(projectDir)
-				? FindCSProjAbove(projectDir)
-				: FindProjectNamedAfterSolutionBelow(solutionDir, solutionName);
+			return false;
 		}
 
-		return !string.IsNullOrEmpty(solutionFilePath) && !string.IsNullOrEmpty(projectFilePath);
+		string solutionDir = Path.GetDirectoryName(solutionFilePath) ?? string.Empty;
+
+		// The upward walk does not stop at the solution, so from a solution root it can reach a
+		// project that sits above the repository and has nothing to do with it.
+		if (!string.IsNullOrEmpty(projectFilePath) && !IsAtOrBelow(Path.GetDirectoryName(projectFilePath) ?? string.Empty, solutionDir))
+		{
+			projectFilePath = string.Empty;
+		}
+
+		if (string.IsNullOrEmpty(projectFilePath))
+		{
+			string solutionName = Path.GetFileNameWithoutExtension(solutionFilePath);
+			string projectDir = Path.Join(solutionDir, solutionName);
+
+			// A <SolutionName>/ folder can exist without a project in it, such as the bin/ and obj/
+			// left behind when the project moved to src/<SolutionName>/. Only a project inside it
+			// counts; otherwise the search below the solution still runs.
+			projectFilePath = FindProjectIn(projectDir, solutionName);
+			if (string.IsNullOrEmpty(projectFilePath))
+			{
+				projectFilePath = FindProjectNamedAfterSolutionBelow(solutionDir, solutionName);
+			}
+		}
+
+		return !string.IsNullOrEmpty(projectFilePath);
+	}
+
+	/// <summary>
+	/// Finds a project directly inside <paramref name="directory"/>, preferring one named
+	/// <paramref name="projectName"/>, without looking above or below it.
+	/// </summary>
+	/// <param name="directory">The directory to look in, which need not exist.</param>
+	/// <param name="projectName">The preferred project's file name without its extension.</param>
+	/// <returns>The project's full path, or an empty string when the directory holds none.</returns>
+	internal static string FindProjectIn(string directory, string projectName)
+	{
+		if (!Directory.Exists(directory))
+		{
+			return string.Empty;
+		}
+
+		string named = Path.Join(directory, $"{projectName}.csproj");
+		string? found = File.Exists(named)
+			? named
+			: Directory.GetFiles(directory, "*.csproj").Order(StringComparer.Ordinal).FirstOrDefault();
+		return found is null ? string.Empty : Path.GetFullPath(found);
+	}
+
+	/// <summary>
+	/// Whether <paramref name="directory"/> is <paramref name="root"/> or lies beneath it.
+	/// </summary>
+	/// <param name="directory">The directory to check.</param>
+	/// <param name="root">The directory it should be inside.</param>
+	/// <returns><see langword="true"/> when <paramref name="directory"/> is inside <paramref name="root"/>.</returns>
+	private static bool IsAtOrBelow(string directory, string root)
+	{
+		string relative = Path.GetRelativePath(Path.GetFullPath(root), Path.GetFullPath(directory));
+		return relative == "."
+			|| (!Path.IsPathRooted(relative)
+				&& relative != ".."
+				&& !relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal)
+				&& !relative.StartsWith(".." + Path.AltDirectorySeparatorChar, StringComparison.Ordinal));
 	}
 
 	/// <summary>
@@ -497,20 +552,20 @@ internal class DocumentCommand : CodeReviewCommand
 
 	/// <summary>
 	/// Finds the project <c>document</c> works on. It only gathers files below the project, so a
-	/// solution is not required: the nearest project at or above <paramref name="path"/> is used, and
-	/// the solution-based lookup is only a fallback for running from a solution root.
+	/// solution is not required: without one, the nearest project at or above <paramref name="path"/>
+	/// is used. Inside a solution the same lookup as <c>test</c> runs, so a project above the
+	/// solution's directory is never picked from a solution root.
 	/// </summary>
 	/// <param name="path">The directory or file to start the search from.</param>
 	/// <returns>The project's path, or an empty string when none is found.</returns>
 	internal static string FindDocumentProjectFilePath(string path)
 	{
-		string projectFilePath = FindCSProjAbove(path);
-		if (string.IsNullOrEmpty(projectFilePath))
+		if (FindProjectAndSolutionFilePaths(path, out string solutionFilePath, out string projectFilePath))
 		{
-			_ = FindProjectAndSolutionFilePaths(path, out _, out projectFilePath);
+			return projectFilePath;
 		}
 
-		return projectFilePath;
+		return string.IsNullOrEmpty(solutionFilePath) ? FindCSProjAbove(path) : string.Empty;
 	}
 }
 

@@ -361,6 +361,91 @@ public sealed class CodeReviewCommandTests
 	}
 
 	/// <summary>
+	/// A <c>&lt;SolutionName&gt;/</c> folder with no project in it, such as the <c>bin/</c> and
+	/// <c>obj/</c> left after the project moved to <c>src/</c>, must not stop discovery from finding
+	/// <c>src/&lt;SolutionName&gt;/&lt;SolutionName&gt;.csproj</c> (ktsu-dev/OAICLI#94).
+	/// </summary>
+	[TestMethod]
+	public void FindProjectAndSolutionFilePathsLooksBelowWhenTheFolderNamedAfterTheSolutionHasNoProject()
+	{
+		string solutionPath = Path.Combine(workingDirectory, "Sample.sln");
+		File.WriteAllText(solutionPath, string.Empty);
+		_ = Directory.CreateDirectory(Path.Combine(workingDirectory, "Sample", "obj"));
+		string projectDirectory = Path.Combine(workingDirectory, "src", "Sample");
+		_ = Directory.CreateDirectory(projectDirectory);
+		string projectPath = Path.Combine(projectDirectory, "Sample.csproj");
+		File.WriteAllText(projectPath, string.Empty);
+
+		bool found = CodeReviewCommand.FindProjectAndSolutionFilePaths(workingDirectory, out string solutionFilePath, out string projectFilePath);
+
+		Assert.IsTrue(found);
+		Assert.AreEqual(Path.GetFullPath(solutionPath), solutionFilePath);
+		Assert.AreEqual(Path.GetFullPath(projectPath), projectFilePath);
+		Assert.AreEqual(Path.GetFullPath(projectPath), DocumentCommand.FindDocumentProjectFilePath(workingDirectory));
+	}
+
+	/// <summary>
+	/// From a solution root, a project sitting above the solution's directory belongs to something
+	/// else and is never picked, whether or not the solution has a project of its own
+	/// (ktsu-dev/OAICLI#94).
+	/// </summary>
+	/// <param name="withOwnProject">Whether the solution has <c>src/Sample/Sample.csproj</c>.</param>
+	/// <param name="withEmptyNamedFolder">Whether an empty <c>Sample/</c> folder sits beside the solution.</param>
+	[TestMethod]
+	[DataRow(true, false)]
+	[DataRow(true, true)]
+	[DataRow(false, false)]
+	[DataRow(false, true)]
+	public void FindProjectAndSolutionFilePathsNeverPicksAProjectAboveTheSolution(bool withOwnProject, bool withEmptyNamedFolder)
+	{
+		File.WriteAllText(Path.Combine(workingDirectory, "Unrelated.csproj"), string.Empty);
+		string repository = Path.Combine(workingDirectory, "repo");
+		_ = Directory.CreateDirectory(repository);
+		string solutionPath = Path.Combine(repository, "Sample.sln");
+		File.WriteAllText(solutionPath, string.Empty);
+		if (withEmptyNamedFolder)
+		{
+			_ = Directory.CreateDirectory(Path.Combine(repository, "Sample", "docs"));
+		}
+
+		string expected = string.Empty;
+		if (withOwnProject)
+		{
+			string projectDirectory = Path.Combine(repository, "src", "Sample");
+			_ = Directory.CreateDirectory(projectDirectory);
+			expected = Path.Combine(projectDirectory, "Sample.csproj");
+			File.WriteAllText(expected, string.Empty);
+			expected = Path.GetFullPath(expected);
+		}
+
+		bool found = CodeReviewCommand.FindProjectAndSolutionFilePaths(repository, out string solutionFilePath, out string projectFilePath);
+
+		Assert.AreEqual(withOwnProject, found);
+		Assert.AreEqual(Path.GetFullPath(solutionPath), solutionFilePath);
+		Assert.AreEqual(expected, projectFilePath);
+		Assert.AreEqual(expected, DocumentCommand.FindDocumentProjectFilePath(repository));
+	}
+
+	/// <summary>
+	/// Run from inside a project below the solution, the nearest project above is still the one used.
+	/// </summary>
+	[TestMethod]
+	public void FindProjectAndSolutionFilePathsUsesTheProjectAboveWhenItIsInsideTheSolution()
+	{
+		File.WriteAllText(Path.Combine(workingDirectory, "Sample.sln"), string.Empty);
+		string projectDirectory = Path.Combine(workingDirectory, "src", "Other");
+		string deeper = Path.Combine(projectDirectory, "Models");
+		_ = Directory.CreateDirectory(deeper);
+		string projectPath = Path.Combine(projectDirectory, "Other.csproj");
+		File.WriteAllText(projectPath, string.Empty);
+
+		bool found = CodeReviewCommand.FindProjectAndSolutionFilePaths(deeper, out _, out string projectFilePath);
+
+		Assert.IsTrue(found);
+		Assert.AreEqual(Path.GetFullPath(projectPath), projectFilePath);
+	}
+
+	/// <summary>
 	/// Two projects named after the solution would make any pick a guess, so neither is chosen.
 	/// </summary>
 	[TestMethod]
