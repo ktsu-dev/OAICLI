@@ -1,26 +1,9 @@
-## v1.2.0 (minor)
+## v1.2.1 (patch)
 
-Changes since v1.1.0:
+Changes since v1.2.0:
 
-- Keep oai test's scaffolded project on a framework MSTest 4 can run [patch] (#92) (matt-edmondson)
-- Ask oai test for hand-written fakes and the scaffold's C# version [patch] (#91) (matt-edmondson)
-- Let oai document run in a standalone project with no solution [patch] (#90) (matt-edmondson)
-- Read the API key from OPENAI_API_KEY for CI and headless runs [minor] (#87) (matt-edmondson)
-- Scaffold a test namespace and class that compile for any project name [patch] (matt-edmondson)
-- Cover the test command's request building the instructions it sends (matt-edmondson)
-- Make the oai test prompt ask for code that builds on MSTest 4 [patch] (matt-edmondson)
-- Find and extend .slnx solutions in oai test and oai document [patch] (Claude)
-- Generate the reply schema with the names the reply is read back with [patch] (Claude)
-- Reject --context, --force and a file path instead of silently ignoring them [patch] (Claude)
-- Drop the unused Spectre.Console.ImageSharp reference [patch] (Claude)
-- Drop the unused Spectre.Console.ImageSharp reference [patch] (Claude)
-- Scaffold the test project only after a successful request, and make it build [patch] (Claude)
-- fix: mask the API key as it is typed at the first-run prompt [patch] (Claude)
-- fix: find a project under src/ instead of crashing on a missing directory [patch] (Claude)
-- fix: leave build output and generated sources out of document and test requests [patch] (Claude)
-- fix: recognise a missing libsecret behind a TypeInitializationException [patch] (Claude)
-- Move CI onto the shared ci-shared.yml pipeline (Claude)
-- fix: report a non-JSON error body with its status instead of crashing [patch] (Claude)
-- fix: register the generated test project so solution builds include it [patch] (Claude)
-- fix: nest the response schema under response_format.json_schema [patch] (Claude)
+- Find src/\<Name\>/\<Name\>.csproj past an empty \<Name\>/ folder, and never pick a project above the solution [patch] (#96) (matt-edmondson)
+- Send source characters to the model as themselves, not as \u escapes [patch] (#98) (matt-edmondson)
+- Stop shipping CommandLineParser and Spectre.Console.Testing in the tool [patch] (#99) (matt-edmondson)
+- Refuse to scaffold tests for a test project, instead of adding \<Project\>.Test.Test [patch] (#100) (matt-edmondson)
 
