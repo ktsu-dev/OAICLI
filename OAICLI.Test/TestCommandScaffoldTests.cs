@@ -132,6 +132,26 @@ public sealed class TestCommandScaffoldTests
 	}
 
 	/// <summary>
+	/// A .NET Framework test project compiles as C# 7.3 by default, which can't build the scaffold's
+	/// global using or the test file's file-scoped namespace, so it gets the latest language version.
+	/// A .NET test project keeps its framework's default, which the instructions are written for.
+	/// </summary>
+	/// <param name="frameworks">The project under test's <c>TargetFrameworks</c>.</param>
+	/// <param name="expectLangVersion">Whether the scaffold should set <c>LangVersion</c>.</param>
+	[TestMethod]
+	[DataRow("net472", true, DisplayName = ".NET Framework only")]
+	[DataRow("net48;net8.0", false, DisplayName = ".NET Framework beside .NET")]
+	[DataRow("net8.0", false, DisplayName = ".NET only")]
+	public void ScaffoldTestProjectRaisesTheLanguageVersionOnlyForNetFramework(string frameworks, bool expectLangVersion)
+	{
+		WriteSolution($"<Project Sdk=\"Microsoft.NET.Sdk\">\n  <PropertyGroup>\n    <TargetFrameworks>{frameworks}</TargetFrameworks>\n  </PropertyGroup>\n</Project>\n");
+
+		TestCommand.ScaffoldTestProject(solutionDirectory);
+
+		Assert.AreEqual(expectLangVersion, ReadTestProject().Contains("<LangVersion>latest</LangVersion>", StringComparison.Ordinal));
+	}
+
+	/// <summary>
 	/// A <c>global.json</c> that already pins MSTest.Sdk decides the version, so the project names the
 	/// SDK without one rather than asking for a second version beside the pin.
 	/// </summary>
@@ -167,6 +187,10 @@ public sealed class TestCommandScaffoldTests
 	[DataRow("<TargetFrameworks>net6.0;net9.0;net8.0</TargetFrameworks>", "net9.0", DisplayName = "Prefers the first supported declared framework")]
 	[DataRow("<TargetFramework>net6.0-windows</TargetFramework>", "net8.0-windows", DisplayName = "Keeps the platform when raising")]
 	[DataRow("<TargetFramework>net472</TargetFramework>", "net472", DisplayName = ".NET Framework is left alone")]
+	[DataRow("<TargetFrameworks>net48;net8.0</TargetFrameworks>", "net8.0", DisplayName = "Prefers .NET over a .NET Framework listed first")]
+	[DataRow("<TargetFrameworks>net472;netstandard2.0;net9.0</TargetFrameworks>", "net9.0", DisplayName = "Prefers .NET past netstandard")]
+	[DataRow("<TargetFrameworks>net48;net6.0</TargetFrameworks>", "net8.0", DisplayName = "Raises an old .NET rather than falling back to .NET Framework")]
+	[DataRow("<TargetFrameworks>net48;net472</TargetFrameworks>", "net48", DisplayName = "Only .NET Framework keeps the first")]
 	public void TestTargetFrameworkFollowsTheProjectUnderTest(string projectContent, string expected)
 	{
 		string running = $"net{Environment.Version.Major}.0";
