@@ -225,6 +225,70 @@ public sealed class CodeReviewCommandTests
 	}
 
 	/// <summary>
+	/// A directory the user can't read, such as the root-owned volume a Postgres container leaves
+	/// behind, holds no code the user wrote, so the downward search skips it and still collects the
+	/// rest of the tree. An unreadable <c>obj</c> left by <c>sudo dotnet build</c> is never entered at
+	/// all, because build output is pruned rather than walked and filtered.
+	/// </summary>
+	[TestMethod]
+	public void FindCSCodeBelowSkipsDirectoriesItCannotRead()
+	{
+		if (OperatingSystem.IsWindows())
+		{
+			Assert.Inconclusive("Unix file modes are needed to make a directory unreadable.");
+			return;
+		}
+
+		string root = Path.Combine(workingDirectory, "Project");
+		string volume = Path.Combine(root, "data", "pg");
+		string objDir = Path.Combine(root, "obj");
+		_ = Directory.CreateDirectory(volume);
+		_ = Directory.CreateDirectory(objDir);
+		File.WriteAllText(Path.Combine(root, "Top.cs"), string.Empty);
+		File.WriteAllText(Path.Combine(volume, "Hidden.cs"), string.Empty);
+		File.WriteAllText(Path.Combine(objDir, "Project.AssemblyInfo.cs"), string.Empty);
+
+		File.SetUnixFileMode(volume, UnixFileMode.None);
+		File.SetUnixFileMode(objDir, UnixFileMode.None);
+		try
+		{
+			if (CanList(volume))
+			{
+				Assert.Inconclusive("Running with privileges that read a mode 000 directory, such as root.");
+			}
+
+			string[] results = CodeReviewCommand.FindCSCodeBelow(root);
+
+			string[] names = [.. results.Select(path => Path.GetFileName(path.AsSpan()).ToString())];
+			CollectionAssert.AreEqual(OnlyHandWrittenSourceFileName, names);
+		}
+		finally
+		{
+			const UnixFileMode ownerAll = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute;
+			File.SetUnixFileMode(volume, ownerAll);
+			File.SetUnixFileMode(objDir, ownerAll);
+		}
+	}
+
+	/// <summary>
+	/// Whether the current process can list a directory's entries.
+	/// </summary>
+	/// <param name="directory">The directory to try.</param>
+	/// <returns><see langword="true"/> when listing it succeeds.</returns>
+	private static bool CanList(string directory)
+	{
+		try
+		{
+			_ = Directory.GetFileSystemEntries(directory);
+			return true;
+		}
+		catch (UnauthorizedAccessException)
+		{
+			return false;
+		}
+	}
+
+	/// <summary>
 	/// The repository layout this tool is aimed at puts the solution at the root and the project one
 	/// directory below it, named after the solution. Discovery has to bridge that gap, because the
 	/// upward walk from the root never sees the project file.

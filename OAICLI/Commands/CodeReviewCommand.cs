@@ -386,11 +386,42 @@ internal abstract class CodeReviewCommand : Command<CodeReviewCommand.Settings>
 			? Path.GetDirectoryName(path) ?? string.Empty
 			: path;
 
-		return string.IsNullOrWhiteSpace(currentDir)
-			? []
-			: [.. Directory.GetFiles(currentDir, pattern, SearchOption.AllDirectories)
-				.Where(filePath => !IsBuildOutputOrGenerated(Path.GetRelativePath(currentDir, filePath)))];
+		if (string.IsNullOrWhiteSpace(currentDir))
+		{
+			return [];
+		}
+
+		// Walk one directory at a time so that build output and source control folders are pruned
+		// rather than walked and then filtered, and so that a directory the user can't read (a
+		// root-owned Docker volume, an obj left by sudo dotnet build) is skipped instead of throwing.
+		List<string> files = [];
+		Stack<string> pending = new([currentDir]);
+		while (pending.TryPop(out string? directory))
+		{
+			files.AddRange(Directory.EnumerateFiles(directory, pattern, SingleDirectoryEnumeration));
+			foreach (string subdirectory in Directory.EnumerateDirectories(directory, "*", SingleDirectoryEnumeration))
+			{
+				if (!ExcludedDirectoryNames.Contains(Path.GetFileName(subdirectory), StringComparer.OrdinalIgnoreCase))
+				{
+					pending.Push(subdirectory);
+				}
+			}
+		}
+
+		return [.. files.Where(filePath => !IsBuildOutputOrGenerated(Path.GetRelativePath(currentDir, filePath)))];
 	}
+
+	/// <summary>
+	/// Lists one directory, skipping entries it can't read and never following a symbolic link or
+	/// junction out of the tree.
+	/// </summary>
+	private static readonly EnumerationOptions SingleDirectoryEnumeration = new()
+	{
+		RecurseSubdirectories = false,
+		IgnoreInaccessible = true,
+		AttributesToSkip = FileAttributes.ReparsePoint,
+		MatchType = MatchType.Win32,
+	};
 
 	/// <summary>
 	/// Directories whose contents the build or source control writes, not the user.
