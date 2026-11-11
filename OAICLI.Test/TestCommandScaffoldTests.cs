@@ -99,6 +99,39 @@ public sealed class TestCommandScaffoldTests
 	}
 
 	/// <summary>
+	/// MSTest.Sdk 4 runs on Microsoft.Testing.Platform, which the .NET 10 SDK refuses to run in
+	/// <c>dotnet test</c>'s default VSTest mode. Unless the solution's <c>global.json</c> already selects
+	/// Microsoft.Testing.Platform, the scaffold opts back into VSTest so <c>dotnet test</c> on the
+	/// solution keeps working. The user's <c>global.json</c> is never rewritten.
+	/// </summary>
+	/// <param name="globalJson">The solution's <c>global.json</c>, or an empty string for none.</param>
+	/// <param name="expectUseVSTest">Whether the scaffold should set <c>UseVSTest</c>.</param>
+	[TestMethod]
+	[DataRow("", true, DisplayName = "No global.json")]
+	[DataRow("""{ "sdk": { "version": "10.0.100" } }""", true, DisplayName = "global.json without a test runner")]
+	[DataRow("""{ "test": { "runner": "VSTest" } }""", true, DisplayName = "global.json selecting VSTest")]
+	[DataRow("""{ "msbuild-sdks": { "MSTest.Sdk": "4.3.3" }, "test": { "runner": "Microsoft.Testing.Platform" } }""", false, DisplayName = "global.json selecting Microsoft.Testing.Platform")]
+	[DataRow("{\n  // pinned for CI\n  \"test\": { \"runner\": \"Microsoft.Testing.Platform\", },\n}", false, DisplayName = "Commented global.json selecting Microsoft.Testing.Platform")]
+	[DataRow("{ not json", true, DisplayName = "Unreadable global.json")]
+	public void ScaffoldTestProjectOptsIntoVSTestUnlessGlobalJsonSelectsMicrosoftTestingPlatform(string globalJson, bool expectUseVSTest)
+	{
+		WriteSolution("<Project Sdk=\"Microsoft.NET.Sdk\">\n  <PropertyGroup>\n    <TargetFramework>net8.0</TargetFramework>\n  </PropertyGroup>\n</Project>\n");
+		string globalJsonPath = Path.Combine(solutionDirectory, "global.json");
+		if (!string.IsNullOrEmpty(globalJson))
+		{
+			File.WriteAllText(globalJsonPath, globalJson);
+		}
+
+		TestCommand.ScaffoldTestProject(solutionDirectory);
+
+		Assert.AreEqual(expectUseVSTest, ReadTestProject().Contains("<UseVSTest>true</UseVSTest>", StringComparison.Ordinal));
+		if (!string.IsNullOrEmpty(globalJson))
+		{
+			Assert.AreEqual(globalJson, File.ReadAllText(globalJsonPath));
+		}
+	}
+
+	/// <summary>
 	/// A <c>global.json</c> that already pins MSTest.Sdk decides the version, so the project names the
 	/// SDK without one rather than asking for a second version beside the pin.
 	/// </summary>

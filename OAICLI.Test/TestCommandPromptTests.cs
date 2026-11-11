@@ -87,7 +87,7 @@ public sealed partial class TestCommandPromptTests
 			string projectPath = Path.Combine(directory, "Sample", "Sample.csproj");
 			_ = Directory.CreateDirectory(Path.GetDirectoryName(projectPath)!);
 			File.WriteAllText(projectPath, "<Project Sdk=\"Microsoft.NET.Sdk\">\n  <PropertyGroup>\n    <TargetFramework>net8.0</TargetFramework>\n  </PropertyGroup>\n</Project>\n");
-			string scaffold = TestCommand.TestProjectContent(projectPath, Path.Combine(directory, "Sample.Test"), msTestSdkPinned: false);
+			string scaffold = TestCommand.TestProjectContent(projectPath, Path.Combine(directory, "Sample.Test"), msTestSdkPinned: false, microsoftTestingPlatformSelected: false);
 
 			foreach (string library in ThirdPartyTestLibraries.Where(library => TestCommand.TestTaskDescription.Contains(library, StringComparison.OrdinalIgnoreCase)))
 			{

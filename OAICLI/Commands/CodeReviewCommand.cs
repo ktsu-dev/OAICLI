@@ -4,6 +4,7 @@ namespace ktsu.OAICLI;
 
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using ktsu.Extensions;
@@ -816,7 +817,7 @@ public class MyClassTests
 		Directory.CreateDirectory(testProjectDir);
 		if (!File.Exists(testProjectFilePath))
 		{
-			File.WriteAllText(testProjectFilePath, TestProjectContent(projectFilePath, testProjectDir, IsMSTestSdkPinned(solutionDir)));
+			File.WriteAllText(testProjectFilePath, TestProjectContent(projectFilePath, testProjectDir, IsMSTestSdkPinned(solutionDir), SelectsMicrosoftTestingPlatform(solutionDir)));
 		}
 
 		if (!File.Exists(testFilePath))
@@ -908,14 +909,21 @@ public class MyClassTests
 	/// Whether a <c>global.json</c> already pins MSTest.Sdk, in which case the project names it without
 	/// a version so the pin decides.
 	/// </param>
+	/// <param name="microsoftTestingPlatformSelected">
+	/// Whether a <c>global.json</c> already makes <c>dotnet test</c> use Microsoft.Testing.Platform. When
+	/// it doesn't, the project opts back into VSTest, because MSTest.Sdk 4 defaults to
+	/// Microsoft.Testing.Platform and the .NET 10 SDK refuses to run such a project in VSTest mode,
+	/// failing <c>dotnet test</c> for the whole solution.
+	/// </param>
 	/// <returns>The test project file's content, with Windows newlines.</returns>
-	internal static string TestProjectContent(string projectFilePath, string testProjectDir, bool msTestSdkPinned)
+	internal static string TestProjectContent(string projectFilePath, string testProjectDir, bool msTestSdkPinned, bool microsoftTestingPlatformSelected)
 	{
 		string sdk = msTestSdkPinned ? "MSTest.Sdk" : $"MSTest.Sdk/{MSTestSdkVersion}";
 		string targetFramework = TestTargetFramework(File.ReadAllText(projectFilePath));
 		string reference = Path.GetRelativePath(testProjectDir, projectFilePath).Replace('/', '\\');
+		string useVSTest = microsoftTestingPlatformSelected ? string.Empty : "\r\n    <UseVSTest>true</UseVSTest>";
 
-		return $"<Project Sdk=\"{sdk}\">\r\n  <PropertyGroup>\r\n    <TargetFramework>{targetFramework}</TargetFramework>\r\n  </PropertyGroup>\r\n\r\n  <ItemGroup>\r\n    <ProjectReference Include=\"{reference}\" />\r\n    <Using Include=\"Microsoft.VisualStudio.TestTools.UnitTesting\" />\r\n  </ItemGroup>\r\n</Project>\r\n";
+		return $"<Project Sdk=\"{sdk}\">\r\n  <PropertyGroup>\r\n    <TargetFramework>{targetFramework}</TargetFramework>{useVSTest}\r\n  </PropertyGroup>\r\n\r\n  <ItemGroup>\r\n    <ProjectReference Include=\"{reference}\" />\r\n    <Using Include=\"Microsoft.VisualStudio.TestTools.UnitTesting\" />\r\n  </ItemGroup>\r\n</Project>\r\n";
 	}
 
 	/// <summary>
@@ -967,6 +975,42 @@ public class MyClassTests
 
 	[GeneratedRegex(@"^net(?:coreapp)?(?<major>\d+)\.\d+(?<platform>-.*)?$", RegexOptions.IgnoreCase)]
 	private static partial Regex DotNetCoreFrameworkPattern();
+
+	/// <summary>
+	/// Whether the <c>global.json</c> nearest the solution directory selects Microsoft.Testing.Platform as
+	/// the <c>dotnet test</c> runner, through <c>"test": { "runner": "Microsoft.Testing.Platform" }</c>.
+	/// </summary>
+	/// <param name="solutionDir">The directory holding the solution file.</param>
+	/// <returns><see langword="true"/> when that runner is selected; <see langword="false"/> when there is
+	/// no <c>global.json</c>, it selects another runner or none, or it can't be read as JSON.</returns>
+	internal static bool SelectsMicrosoftTestingPlatform(string solutionDir)
+	{
+		string globalJsonPath = FindFileAbove(solutionDir, "global.json");
+		if (string.IsNullOrEmpty(globalJsonPath))
+		{
+			return false;
+		}
+
+		try
+		{
+			using JsonDocument document = JsonDocument.Parse(File.ReadAllText(globalJsonPath), new JsonDocumentOptions
+			{
+				CommentHandling = JsonCommentHandling.Skip,
+				AllowTrailingCommas = true,
+			});
+
+			return document.RootElement.ValueKind == JsonValueKind.Object
+				&& document.RootElement.TryGetProperty("test", out JsonElement test)
+				&& test.ValueKind == JsonValueKind.Object
+				&& test.TryGetProperty("runner", out JsonElement runner)
+				&& runner.ValueKind == JsonValueKind.String
+				&& string.Equals(runner.GetString(), "Microsoft.Testing.Platform", StringComparison.OrdinalIgnoreCase);
+		}
+		catch (JsonException)
+		{
+			return false;
+		}
+	}
 
 	/// <summary>
 	/// Whether a <c>global.json</c> at or above the solution directory pins MSTest.Sdk.
