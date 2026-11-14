@@ -1,7 +1,6 @@
-## v1.2.2 (patch)
+## v1.2.3 (patch)
 
-Changes since v1.2.1:
+Changes since v1.2.2:
 
-- Skip unreadable directories when collecting sources, and prune bin/obj/.git [patch] (#105) (matt-edmondson)
-- Keep dotnet test working in solutions that don't select Microsoft.Testing.Platform [patch] (#107) (matt-edmondson)
+- Scaffold a .NET test project for a library that also targets .NET Framework [patch] (#106) (matt-edmondson)
 
