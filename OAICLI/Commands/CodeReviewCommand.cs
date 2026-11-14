@@ -954,7 +954,13 @@ public class MyClassTests
 		string reference = Path.GetRelativePath(testProjectDir, projectFilePath).Replace('/', '\\');
 		string useVSTest = microsoftTestingPlatformSelected ? string.Empty : "\r\n    <UseVSTest>true</UseVSTest>";
 
-		return $"<Project Sdk=\"{sdk}\">\r\n  <PropertyGroup>\r\n    <TargetFramework>{targetFramework}</TargetFramework>{useVSTest}\r\n  </PropertyGroup>\r\n\r\n  <ItemGroup>\r\n    <ProjectReference Include=\"{reference}\" />\r\n    <Using Include=\"Microsoft.VisualStudio.TestTools.UnitTesting\" />\r\n  </ItemGroup>\r\n</Project>\r\n";
+		// A .NET Framework project defaults to C# 7.3, which can't compile the scaffold's own global
+		// using or the file-scoped namespace the test file is written with.
+		string langVersion = DotNetCoreFrameworkPattern().IsMatch(targetFramework)
+			? string.Empty
+			: "\r\n    <LangVersion>latest</LangVersion>";
+
+		return $"<Project Sdk=\"{sdk}\">\r\n  <PropertyGroup>\r\n    <TargetFramework>{targetFramework}</TargetFramework>{langVersion}{useVSTest}\r\n  </PropertyGroup>\r\n\r\n  <ItemGroup>\r\n    <ProjectReference Include=\"{reference}\" />\r\n    <Using Include=\"Microsoft.VisualStudio.TestTools.UnitTesting\" />\r\n  </ItemGroup>\r\n</Project>\r\n";
 	}
 
 	/// <summary>
@@ -964,8 +970,10 @@ public class MyClassTests
 	/// The first framework the project declares, so the reference resolves. A <c>netstandard</c>
 	/// library cannot host a test run, and a project that inherits its frameworks from an SDK declares
 	/// none; both get the framework this tool is running on, which the machine is known to have. A
-	/// .NET (Core) framework below <c>net8.0</c> gives way to a newer one the project declares, or is
-	/// raised to <c>net8.0</c>, because MSTest 4 cannot run tests there.
+	/// .NET (Core) framework is preferred over a .NET Framework one wherever it appears in the list,
+	/// because a .NET Framework test project compiles as C# 7.3 by default. A .NET (Core) framework
+	/// below <c>net8.0</c> gives way to a newer one the project declares, or is raised to
+	/// <c>net8.0</c>, because MSTest 4 cannot run tests there.
 	/// </remarks>
 	/// <param name="projectContent">The project file's content.</param>
 	/// <returns>A target framework moniker.</returns>
@@ -980,9 +988,15 @@ public class MyClassTests
 			return $"net{Environment.Version.Major}.0";
 		}
 
-		string first = declared[0];
+		// Only .NET Framework (or another non-Core family) declared: use it as is.
+		string? first = declared.FirstOrDefault(framework => DotNetCoreFrameworkPattern().IsMatch(framework));
+		if (first is null)
+		{
+			return declared[0];
+		}
+
 		Match core = DotNetCoreFrameworkPattern().Match(first);
-		if (!core.Success || int.Parse(core.Groups["major"].Value, CultureInfo.InvariantCulture) >= MSTestMinimumDotNetMajor)
+		if (int.Parse(core.Groups["major"].Value, CultureInfo.InvariantCulture) >= MSTestMinimumDotNetMajor)
 		{
 			return first;
 		}
